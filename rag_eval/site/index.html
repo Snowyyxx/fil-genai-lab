@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How to Measure RAG — a visual guide</title>
+<style>
+  :root{
+    --bg:#0f1115; --card:#181b22; --ink:#e6e8ec; --muted:#9aa3b2;
+    --line:#262b36; --accent:#e08a5b; --accent2:#6ea8fe; --good:#5bd08a; --bad:#e06b6b;
+    --mono:'SFMono-Regular',ui-monospace,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  a{color:var(--accent2)}
+  header{padding:64px 24px 40px;text-align:center;border-bottom:1px solid var(--line);
+    background:radial-gradient(1200px 400px at 50% -120px,#20242f,transparent)}
+  header h1{margin:0 0 10px;font-size:38px;letter-spacing:-.5px}
+  header p{margin:0 auto;max-width:640px;color:var(--muted);font-size:18px}
+  main{max-width:900px;margin:0 auto;padding:8px 20px 80px}
+  section{margin:44px 0}
+  h2{font-size:26px;margin:0 0 6px;letter-spacing:-.3px;
+    border-left:4px solid var(--accent);padding-left:12px}
+  h3{font-size:19px;margin:26px 0 8px}
+  .lead{color:var(--muted)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:20px 22px;margin:18px 0}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:680px){.grid2{grid-template-columns:1fr}}
+  .pill{display:inline-block;font:12px/1 var(--mono);padding:5px 9px;border-radius:999px;
+    border:1px solid var(--line);color:var(--muted);margin:0 6px 6px 0}
+  .pill.judge{border-color:#5a4634;color:#f0b088}
+  .pill.retr{border-color:#2f4a63;color:#8fc0f0}
+  code,.eq{font-family:var(--mono);background:#11141a;border:1px solid var(--line);
+    border-radius:6px;padding:1px 6px;font-size:13.5px}
+  .eq{display:block;padding:12px 14px;margin:10px 0;color:#dbe4ff;white-space:pre-wrap;overflow-x:auto}
+  .code-wrap{margin:14px 0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#0c0f14}
+  .code-head{display:flex;justify-content:space-between;align-items:center;
+    padding:7px 12px;background:#151922;border-bottom:1px solid var(--line);
+    font:12px/1 var(--mono);color:var(--muted)}
+  .code-head .fname{color:#8fc0f0}
+  .copy-btn{cursor:pointer;background:#1d222c;border:1px solid var(--line);color:var(--muted);
+    border-radius:6px;padding:4px 9px;font:11px/1 var(--mono)}
+  .copy-btn:hover{color:var(--ink);border-color:var(--accent2)}
+  pre{margin:0}
+  pre code.hljs{padding:14px 16px;font-family:var(--mono);font-size:13px;line-height:1.6;
+    background:#0c0f14;overflow-x:auto}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:14.5px}
+  th,td{border:1px solid var(--line);padding:9px 11px;text-align:left;vertical-align:top}
+  th{background:#1d222c;color:#cfd6e2}
+  .good{color:var(--good)} .bad{color:var(--bad)} .muted{color:var(--muted)}
+  .mermaid{background:#12151b;border:1px solid var(--line);border-radius:12px;
+    padding:16px;margin:16px 0;text-align:center}
+  .note{border-left:3px solid var(--accent2);padding:6px 0 6px 14px;color:var(--muted);margin:14px 0}
+  .worked{background:#10141b;border:1px dashed #333b49;border-radius:10px;padding:14px 16px;margin:12px 0}
+  .worked b{color:var(--accent)}
+  nav{position:sticky;top:0;background:#0f1115ee;backdrop-filter:blur(6px);
+    border-bottom:1px solid var(--line);padding:10px 20px;font-size:14px;z-index:5}
+  nav a{margin-right:16px;text-decoration:none;color:var(--muted)}
+  nav a:hover{color:var(--ink)}
+  footer{border-top:1px solid var(--line);color:var(--muted);text-align:center;
+    padding:30px 20px;font-size:14px}
+  .scoreboard{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .chip{font:12px/1 var(--mono);padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:#11141a}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>How to Measure RAG</h1>
+  <p>A plain-English, visual guide to the metrics used to tell whether a
+     Retrieval-Augmented-Generation system is actually working.</p>
+</header>
+
+<nav>
+  <a href="#what">What is RAG</a>
+  <a href="#why">Two halves</a>
+  <a href="#retrieval">Retrieval metrics</a>
+  <a href="#generation">Judge metrics</a>
+  <a href="#recap">Cheat sheet</a>
+</nav>
+
+<main>
+
+<!-- ===================================================== -->
+<section id="what">
+  <h2>1. What RAG is (in one picture)</h2>
+  <p class="lead">RAG = <b>retrieve</b> relevant documents, then <b>generate</b> an
+  answer using them. You ask a question, a <i>retriever</i> pulls chunks of text
+  from a knowledge base, and an <i>LLM</i> writes an answer grounded in those chunks.</p>
+
+  <div class="mermaid">
+flowchart LR
+    Q([Your question]) --> R[Retriever<br/>vector search]
+    KB[(Knowledge base<br/>documents)] --> R
+    R --> C[Top-k context<br/>chunks]
+    C --> L[LLM generator]
+    Q --> L
+    L --> A([Answer])
+    style Q fill:#1d2733,stroke:#6ea8fe,color:#e6e8ec
+    style A fill:#2a2119,stroke:#e08a5b,color:#e6e8ec
+    style R fill:#181b22,stroke:#2f4a63,color:#e6e8ec
+    style L fill:#181b22,stroke:#5a4634,color:#e6e8ec
+    style KB fill:#12151b,stroke:#262b36,color:#9aa3b2
+    style C fill:#12151b,stroke:#262b36,color:#e6e8ec
+  </div>
+
+  <p>If the answer is wrong, <b>which part failed?</b> The retriever (fetched the
+  wrong chunks) or the generator (had good chunks but hallucinated)? That is
+  exactly why we measure the two halves separately.</p>
+</section>
+
+<!-- ===================================================== -->
+<section id="why">
+  <h2>2. The two families of metrics</h2>
+  <div class="grid2">
+    <div class="card">
+      <span class="pill retr">deterministic · no LLM</span>
+      <h3>Retrieval metrics</h3>
+      <p class="muted">Grade the <b>documents you fetched</b>. Pure math on
+      rankings. Needs <b>gold labels</b>: for each question, which document IDs
+      are truly relevant.</p>
+      <div class="scoreboard">
+        <span class="chip">Hit Rate</span><span class="chip">MRR</span>
+        <span class="chip">Precision@k</span><span class="chip">Recall@k</span>
+        <span class="chip">NDCG@k</span>
+      </div>
+    </div>
+    <div class="card">
+      <span class="pill judge">LLM-as-judge · Claude</span>
+      <h3>Generation metrics</h3>
+      <p class="muted">Grade the <b>answer itself</b>. A strong model (Claude)
+      reads the question, context, and answer and scores them. Mirrors the
+      <b>RAGAS</b> metric set.</p>
+      <div class="scoreboard">
+        <span class="chip">Faithfulness</span><span class="chip">Answer Relevancy</span>
+        <span class="chip">Context Relevance</span><span class="chip">Answer Correctness</span>
+      </div>
+    </div>
+  </div>
+  <div class="note">Rule of thumb: retrieval metrics are cheap, exact, and need
+  labels. Judge metrics need no labels (mostly) and catch hallucination — but
+  cost an API call and have some variance. Use both.</div>
+</section>
+
+<!-- ===================================================== -->
+<section id="retrieval">
+  <h2>3. Retrieval metrics — did we fetch the right docs?</h2>
+  <p class="lead">Setup for every example below: the retriever returned 3 docs in
+  this order, and only <code>D1</code> is truly relevant.</p>
+
+  <div class="worked">
+    <b>Retrieved (rank order):</b> [ D3 , <span class="good">D1</span> , D9 ]<br>
+    <b>Relevant (gold):</b> { <span class="good">D1</span> }
+  </div>
+
+  <div class="code-wrap">
+    <div class="code-head"><span class="fname">using the metrics</span>
+      <button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+<pre><code class="language-python">from rag_eval import retrieval_metrics as rm
+
+retrieved = ["D3", "D1", "D9"]   # ranked output of your retriever
+relevant  = {"D1"}               # gold labels for this question
+
+rm.hit_rate(retrieved, relevant, k=3)          # 1.0
+rm.reciprocal_rank(retrieved, relevant)        # 0.5   (D1 at rank 2)
+rm.precision_at_k(retrieved, relevant, k=3)    # 0.333
+rm.recall_at_k(retrieved, relevant, k=3)       # 1.0
+rm.ndcg_at_k(retrieved, relevant, k=3)         # 0.631
+</code></pre>
+  </div>
+
+  <h3>Hit Rate@k — "did we get <i>anything</i> useful?"</h3>
+  <p>1 if at least one relevant doc is in the top-k, else 0. The most forgiving
+  metric.</p>
+  <div class="worked">D1 is in the top-3 → <b>Hit Rate@3 = <span class="good">1.0</span></b></div>
+
+  <h3>MRR — "how <i>early</i> did the first good doc appear?"</h3>
+  <p>Reciprocal Rank = 1 ÷ (position of the first relevant doc). Averaged over all
+  questions this is <b>Mean Reciprocal Rank</b>. Rank 1 → 1.0, rank 2 → 0.5, rank 3 → 0.33…</p>
+  <div class="worked">First relevant doc (D1) is at position 2 → <b>RR = 1/2 = <span class="good">0.5</span></b></div>
+
+  <div class="code-wrap">
+    <div class="code-head"><span class="fname">retrieval_metrics.py — implementation</span>
+      <button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+<pre><code class="language-python">def hit_rate(retrieved, relevant, k=None):
+    relevant = set(relevant)
+    topk = retrieved if k is None else retrieved[:k]
+    return 1.0 if any(d in relevant for d in topk) else 0.0
+
+def reciprocal_rank(retrieved, relevant):
+    relevant = set(relevant)
+    for i, d in enumerate(retrieved, start=1):   # 1-indexed ranks
+        if d in relevant:
+            return 1.0 / i                       # first hit only
+    return 0.0
+</code></pre>
+  </div>
+
+  <h3>Precision@k vs Recall@k — the core trade-off</h3>
+  <div class="grid2">
+    <div class="card">
+      <h3 style="margin-top:0">Precision@k</h3>
+      <p class="muted">Of what we showed the LLM, how much was relevant?<br>
+      <span class="eq">relevant in top-k ÷ k</span>
+      Low precision = noise in the prompt.</p>
+      <div class="worked">1 relevant out of 3 shown → <b>0.33</b></div>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">Recall@k</h3>
+      <p class="muted">Of everything relevant, how much did we fetch?<br>
+      <span class="eq">relevant in top-k ÷ all relevant</span>
+      Low recall = missing support.</p>
+      <div class="worked">Found the 1 relevant doc → <b>1.0</b></div>
+    </div>
+  </div>
+  <div class="code-wrap">
+    <div class="code-head"><span class="fname">retrieval_metrics.py — implementation</span>
+      <button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+<pre><code class="language-python">def precision_at_k(retrieved, relevant, k):
+    relevant = set(relevant)
+    topk = retrieved[:k]
+    if not topk:
+        return 0.0
+    hits = sum(1 for d in topk if d in relevant)
+    return hits / len(topk)          # relevant shown / total shown
+
+def recall_at_k(retrieved, relevant, k):
+    relevant = set(relevant)
+    if not relevant:
+        return 0.0
+    hits = len(set(retrieved[:k]) &amp; relevant)
+    return hits / len(relevant)      # relevant found / all relevant
+</code></pre>
+  </div>
+  <div class="mermaid">
+flowchart TB
+    subgraph tension["The precision / recall tension"]
+      direction LR
+      A[Retrieve MORE chunks] --> B[Recall ↑<br/>catch everything]
+      A --> C[Precision ↓<br/>more noise]
+      D[Retrieve FEWER chunks] --> E[Precision ↑<br/>tight, clean]
+      D --> F[Recall ↓<br/>miss support]
+    end
+    style tension fill:#12151b,stroke:#262b36,color:#9aa3b2
+    style A fill:#1d2733,stroke:#6ea8fe,color:#e6e8ec
+    style D fill:#2a2119,stroke:#e08a5b,color:#e6e8ec
+    style B fill:#181b22,stroke:#5bd08a,color:#e6e8ec
+    style E fill:#181b22,stroke:#5bd08a,color:#e6e8ec
+    style C fill:#181b22,stroke:#e06b6b,color:#e6e8ec
+    style F fill:#181b22,stroke:#e06b6b,color:#e6e8ec
+  </div>
+  <p class="muted">You tune <code>k</code> (how many chunks to retrieve) and add a
+  re-ranker to push both up at once.</p>
+
+  <h3>NDCG@k — "are the good docs ranked <i>high</i>?"</h3>
+  <p>Precision and recall ignore order within the top-k. <b>NDCG</b> does not: a
+  relevant doc earns more credit the higher it ranks, discounted by
+  <code>log₂(position+1)</code>, then normalized against the perfect ordering so
+  the score lands in 0–1.</p>
+  <div class="eq">DCG   = Σ  relevance(i) / log₂(i + 1)          (i = rank)
+IDCG  = same, but with all relevant docs ranked first
+NDCG  = DCG / IDCG</div>
+  <div class="worked">
+    D1 (relevant) is at rank 2 → DCG = 1/log₂(3) = 0.63.<br>
+    Ideal: D1 at rank 1 → IDCG = 1/log₂(2) = 1.0.<br>
+    <b>NDCG@3 = 0.63 / 1.0 = <span class="good">0.63</span></b> — good, but it'd be 1.0 if D1 were ranked first.
+  </div>
+  <div class="code-wrap">
+    <div class="code-head"><span class="fname">retrieval_metrics.py — implementation</span>
+      <button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+<pre><code class="language-python">import math
+
+def ndcg_at_k(retrieved, relevant, k):
+    relevant = set(relevant)
+    topk = retrieved[:k]
+
+    # DCG: each relevant doc scores 1, discounted by its rank position
+    dcg = sum(
+        (1.0 if d in relevant else 0.0) / math.log2(i + 1)
+        for i, d in enumerate(topk, start=1)
+    )
+
+    # IDCG: the best possible ordering (all relevant docs first)
+    ideal_hits = min(len(relevant), k)
+    idcg = sum(1.0 / math.log2(i + 1) for i in range(1, ideal_hits + 1))
+
+    return dcg / idcg if idcg > 0 else 0.0      # normalize to 0..1
+</code></pre>
+  </div>
+  <div class="note"><b>Context Precision</b> (in the RAGAS set) is a cousin of
+  NDCG: it averages the precision measured at each rank where a relevant doc sits,
+  so it also rewards putting relevant docs early.</div>
+</section>
+
+<!-- ===================================================== -->
+<section id="generation">
+  <h2>4. Judge metrics — is the <i>answer</i> any good?</h2>
+  <p class="lead">These use an LLM (here, Claude) as an examiner. The big win:
+  most need <b>no gold labels</b>, so you can run them on live traffic. The star
+  metric is <b>Faithfulness</b> — your hallucination detector.</p>
+
+  <h3>Faithfulness — is every claim backed by the context?</h3>
+  <p>The judge breaks the answer into <b>atomic claims</b>, then checks each one
+  <i>against the retrieved context only</i> (its own knowledge doesn't count).
+  Score = supported claims ÷ total claims.</p>
+
+  <div class="mermaid">
+flowchart TB
+    A[Answer text] --> B[Split into<br/>atomic claims]
+    B --> C1["Claim 1: written by Shakespeare"]
+    B --> C2["Claim 2: written in 1601"]
+    CTX[(Retrieved context)] --> J{Supported by<br/>context?}
+    C1 --> J
+    C2 --> J
+    J -->|yes| S1["✓ Claim 1 supported"]
+    J -->|no| S2["✗ Claim 2 NOT in context"]
+    S1 --> SC["Score = 1 of 2 = 0.5"]
+    S2 --> SC
+    style A fill:#2a2119,stroke:#e08a5b,color:#e6e8ec
+    style CTX fill:#12151b,stroke:#262b36,color:#9aa3b2
+    style J fill:#1d2733,stroke:#6ea8fe,color:#e6e8ec
+    style S1 fill:#181b22,stroke:#5bd08a,color:#e6e8ec
+    style S2 fill:#181b22,stroke:#e06b6b,color:#e6e8ec
+    style SC fill:#181b22,stroke:#e08a5b,color:#e6e8ec
+  </div>
+  <div class="worked">
+    <b>Context:</b> "Hamlet is a tragedy written by William Shakespeare."<br>
+    <b>Answer:</b> "Hamlet was written by William Shakespeare <span class="bad">in 1601</span>."<br>
+    Claim "by Shakespeare" → <span class="good">supported</span>.
+    Claim "in 1601" → <span class="bad">not in context</span> (the model made it up).<br>
+    <b>Faithfulness = 1/2 = <span class="bad">0.5</span></b>. The number pinpoints the hallucination.
+  </div>
+
+  <div class="code-wrap">
+    <div class="code-head"><span class="fname">calling the judge</span>
+      <button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+<pre><code class="language-python">from rag_eval import ClaudeJudge
+
+judge = ClaudeJudge()   # reads ANTHROPIC_API_KEY (or an `ant auth login` profile)
+
+result = judge.faithfulness(
+    question="Who wrote Hamlet?",
+    contexts=["Hamlet is a tragedy written by William Shakespeare."],
+    answer="Hamlet was written by William Shakespeare in 1601.",
+)
+
+print(result.score)     # 0.5
+print(result.reason)    # "1 unsupported claim(s): written in 1601"
+for c in result.claims: # inspect *why* — the audit trail
+    print(c.supported, "|", c.claim)
+# True  | Hamlet was written by William Shakespeare
+# False | Hamlet was written in 1601
+</code></pre>
+  </div>
+
+  <h3>Answer Relevancy — does the answer address the question?</h3>
+  <p>Clever trick: the judge <b>reverse-generates</b> the questions the answer
+  <i>would</i> perfectly answer, then measures how close those are to the real
+  question. A rambling or off-topic answer produces mismatched questions → low
+  score, even if it's factually true. Evasive answers ("I don't know") score 0.</p>
+  <div class="mermaid">
+flowchart LR
+    A[Answer] --> G[Reverse-generate<br/>3 questions it answers]
+    G --> Q1[Q'1]
+    G --> Q2[Q'2]
+    G --> Q3[Q'3]
+    Q1 --> M{Similarity to the<br/>REAL question?}
+    Q2 --> M
+    Q3 --> M
+    M --> SC[Average = score 0–1]
+    style A fill:#2a2119,stroke:#e08a5b,color:#e6e8ec
+    style M fill:#1d2733,stroke:#6ea8fe,color:#e6e8ec
+    style SC fill:#181b22,stroke:#e08a5b,color:#e6e8ec
+  </div>
+
+  <h3>Context Relevance — how much retrieved text was actually useful?</h3>
+  <p>The judge counts what fraction of the retrieved context is relevant to the
+  question (signal vs. noise). Like Precision@k, but judged directly from the
+  question — <b>no gold labels needed</b>.</p>
+  <div class="worked">
+    2 context chunks retrieved, only 1 is on-topic → <b>Context Relevance = <span class="good">0.5</span></b>.
+    Tells you your retriever is padding the prompt with junk.
+  </div>
+
+  <h3>Answer Correctness — does it match the reference answer?</h3>
+  <p>The only judge metric that needs a <b>ground-truth answer</b>. The judge
+  compares facts (not wording): correct = 1.0, partially correct = 0.5,
+  incorrect = 0.0.</p>
+  <div class="worked">
+    <b>Reference:</b> "Hamlet was written by William Shakespeare."<br>
+    <b>Answer:</b> "Hamlet was written by Shakespeare in 1601." → core fact agrees,
+    extra unverified detail → <b>partially correct = <span class="muted">0.5</span></b>.
+  </div>
+
+  <div class="note">Under the hood each judge call uses <b>Claude Opus 4.8</b> with
+  <b>structured outputs</b> — so it must return the claims / questions / verdicts
+  in a fixed schema. That's why you can read <i>why</i> a sample scored what it
+  did, not just the number.</div>
+
+  <div class="code-wrap">
+    <div class="code-head"><span class="fname">llm_judge.py — under the hood</span>
+      <button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+<pre><code class="language-python">from pydantic import BaseModel, Field
+import anthropic
+
+# 1. Define the schema Claude MUST fill in — one row per atomic claim.
+class Claim(BaseModel):
+    claim: str
+    supported: bool = Field(description="True if the context supports this claim.")
+
+class FaithfulnessResult(BaseModel):
+    claims: list[Claim]
+    @property
+    def score(self):                       # supported / total
+        return sum(c.supported for c in self.claims) / len(self.claims)
+
+client = anthropic.Anthropic()
+
+# 2. messages.parse() forces the reply into the schema — no JSON hand-parsing.
+resp = client.messages.parse(
+    model="claude-opus-4-8",
+    max_tokens=4096,
+    thinking={"type": "adaptive"},          # let it reason before deciding
+    output_config={"effort": "high"},       # judging is intelligence-sensitive
+    system="Extract atomic claims from the ANSWER and mark each as supported "
+           "by the CONTEXT alone (ignore outside knowledge). Be strict.",
+    messages=[{"role": "user",
+               "content": f"CONTEXT:\n{context}\n\nANSWER:\n{answer}"}],
+    output_format=FaithfulnessResult,       # &lt;-- the schema
+)
+
+result = resp.parsed_output                 # a validated FaithfulnessResult
+print(result.score)
+</code></pre>
+  </div>
+</section>
+
+<!-- ===================================================== -->
+<section id="recap">
+  <h2>5. Cheat sheet</h2>
+  <table>
+    <tr><th>Metric</th><th>Grades</th><th>Question it answers</th><th>Needs labels?</th></tr>
+    <tr><td>Hit Rate@k</td><td>retrieval</td><td>Any relevant doc in top-k?</td><td>Yes (relevant IDs)</td></tr>
+    <tr><td>MRR</td><td>retrieval</td><td>How early is the first good doc?</td><td>Yes</td></tr>
+    <tr><td>Precision@k</td><td>retrieval</td><td>Signal vs noise in the fetched set</td><td>Yes</td></tr>
+    <tr><td>Recall@k</td><td>retrieval</td><td>Did we fetch all we needed?</td><td>Yes</td></tr>
+    <tr><td>NDCG@k</td><td>retrieval</td><td>Are good docs ranked high?</td><td>Yes</td></tr>
+    <tr><td class="good">Faithfulness</td><td>generation</td><td>Is every claim grounded? (hallucination)</td><td>No</td></tr>
+    <tr><td>Answer Relevancy</td><td>generation</td><td>Does it address the question?</td><td>No</td></tr>
+    <tr><td>Context Relevance</td><td>generation</td><td>Was retrieved text useful?</td><td>No</td></tr>
+    <tr><td>Answer Correctness</td><td>generation</td><td>Matches the reference answer?</td><td>Yes (truth answer)</td></tr>
+  </table>
+
+  <div class="mermaid">
+flowchart TB
+    START([A RAG answer looks wrong]) --> R{Retrieval<br/>metrics low?}
+    R -->|yes| RF[Fix the retriever:<br/>chunking, embeddings,<br/>k, re-ranker]
+    R -->|no| F{Faithfulness<br/>low?}
+    F -->|yes| FF[Generator hallucinated —<br/>tighten prompt / grounding]
+    F -->|no| AR{Answer Relevancy<br/>low?}
+    AR -->|yes| ARF[Answer off-topic —<br/>improve prompt / instructions]
+    AR -->|no| OK([Pipeline healthy ✓])
+    style START fill:#2a2119,stroke:#e08a5b,color:#e6e8ec
+    style OK fill:#181b22,stroke:#5bd08a,color:#e6e8ec
+    style R fill:#1d2733,stroke:#6ea8fe,color:#e6e8ec
+    style F fill:#1d2733,stroke:#6ea8fe,color:#e6e8ec
+    style AR fill:#1d2733,stroke:#6ea8fe,color:#e6e8ec
+  </div>
+  <p class="muted">This is the debugging flow the metrics unlock: isolate whether
+  retrieval or generation is the culprit, then fix the right thing.</p>
+
+  <h3>Run every metric over a dataset in one call</h3>
+  <div class="code-wrap">
+    <div class="code-head"><span class="fname">evaluate.py — the full pipeline</span>
+      <button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+<pre><code class="language-python">from rag_eval import RAGSample, evaluate_dataset
+
+samples = [
+    RAGSample(
+        question="Who wrote Hamlet?",
+        answer="Hamlet was written by William Shakespeare in 1601.",
+        contexts=["Hamlet is a tragedy written by William Shakespeare."],
+        retrieved_ids=["doc_hamlet", "doc_globe"],  # enables retrieval metrics
+        relevant_ids=["doc_hamlet"],                # gold labels
+        ground_truth="Hamlet was written by William Shakespeare.",  # optional
+    ),
+]
+
+result = evaluate_dataset(samples, k=5)     # retrieval + judge metrics
+print(result["aggregate"])
+# {'hit_rate@k': 1.0, 'mrr': 0.5, 'faithfulness': 0.5, ...}
+
+# Free mode — deterministic metrics only, zero API calls:
+evaluate_dataset(samples, k=5, run_llm_metrics=False)
+</code></pre>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  Companion to the <code>rag_eval</code> toolkit · metrics computed in
+  <code>retrieval_metrics.py</code> (deterministic) and <code>llm_judge.py</code>
+  (Claude Opus 4.8). Open this file in any browser — no server needed.
+</footer>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/atom-one-dark.min.css">
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
+<script>
+  // Syntax highlight all code blocks (offline-safe: text is readable even if the CDN fails).
+  window.addEventListener('DOMContentLoaded', () => {
+    if (window.hljs) document.querySelectorAll('pre code').forEach(b => hljs.highlightElement(b));
+  });
+  // Copy-to-clipboard for every snippet.
+  function copyCode(btn){
+    const code = btn.closest('.code-wrap').querySelector('code').innerText;
+    navigator.clipboard.writeText(code).then(()=>{ btn.textContent='copied ✓';
+      setTimeout(()=>btn.textContent='copy',1200); });
+  }
+</script>
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({
+    startOnLoad:true,
+    theme:'dark',
+    themeVariables:{
+      fontFamily:'ui-sans-serif,system-ui,sans-serif',
+      lineColor:'#5b6472',
+      primaryColor:'#181b22',
+      primaryTextColor:'#e6e8ec',
+      primaryBorderColor:'#2f4a63'
+    },
+    flowchart:{curve:'basis',useMaxWidth:true}
+  });
+</script>
+</body>
+</html>
