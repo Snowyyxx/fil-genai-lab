@@ -1,0 +1,105 @@
+# Open-source LLM stack:  FastAPI ──► LiteLLM proxy ──► Ollama
+#
+#   docker compose up -d          # start everything (first run pulls models)
+#   docker compose logs -f api    # watch the FastAPI app
+#   docker compose down           # stop (add -v to also wipe model volume)
+
+services:
+  # ── 1. Ollama: serves the actual open-source models ──────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    # No host port publish: LiteLLM reaches it internally at http://ollama:11434.
+    # (Publishing 11434 collides with a native Ollama already running on the host.)
+    # To expose it to the host too, uncomment and pick a free port, e.g. "11435:11434".
+    # ports:
+    #   - "11435:11434"
+    volumes:
+      - ollama_data:/root/.ollama          # cache pulled models across restarts
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    # For NVIDIA GPU acceleration, uncomment:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+  # ── 2. One-shot job that pulls the models on first `up` ──────────────────
+  ollama-pull:
+    image: ollama/ollama:latest
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      - OLLAMA_HOST=ollama:11434          # talk to the server container above
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      "ollama pull llama3.2:1b && ollama pull qwen2.5:1.5b && echo 'models ready'"
+    restart: "no"
+
+  # ── 3. Postgres: backs the LiteLLM admin console (keys, users, usage) ────
+  postgres:
+    image: postgres:16
+    container_name: litellm_postgres
+    environment:
+      - POSTGRES_USER=litellm
+      - POSTGRES_PASSWORD=litellm
+      - POSTGRES_DB=litellm
+    ports:
+      - "5433:5432"          # host 5433 → container 5432 (5432 is taken by a native Postgres)
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U litellm -d litellm"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  # ── 4. LiteLLM: OpenAI-compatible gateway in front of Ollama ─────────────
+  litellm:
+    image: ghcr.io/berriai/litellm:main-latest
+    container_name: litellm
+    depends_on:
+      ollama:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    ports:
+      - "4000:4000"
+    environment:
+      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY:-sk-local-dev-key}
+      # LiteLLM runs Prisma migrations against this on startup, then stores
+      # virtual keys / users / usage here. Enables the admin console login.
+      - DATABASE_URL=postgresql://litellm:litellm@postgres:5432/litellm
+      - STORE_MODEL_IN_DB=True     # persist models added via the UI
+      # LangSmith tracing — put your key in .env (LANGSMITH_API_KEY=...).
+      - LANGSMITH_API_KEY=${LANGSMITH_API_KEY:-}
+      - LANGSMITH_PROJECT=${LANGSMITH_PROJECT:-llm-gateway}
+      # OpenAI Moderation guardrail needs an OpenAI key (external call to OpenAI).
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    volumes:
+      - ./litellm/config.yaml:/app/config.yaml:ro
+    command: ["--config", "/app/config.yaml", "--host", "0.0.0.0", "--port", "4000"]
+
+  # ── 5. Our FastAPI app that calls LiteLLM ────────────────────────────────
+  api:
+    build: ./app
+    container_name: llm_api
+    depends_on:
+      - litellm
+    ports:
+      - "8000:8000"
+    environment:
+      - LITELLM_BASE_URL=http://litellm:4000/v1
+      - LITELLM_API_KEY=${LITELLM_MASTER_KEY:-sk-local-dev-key}
+      - DEFAULT_MODEL=llama3.2
+
+volumes:
+  ollama_data:
+  postgres_data:

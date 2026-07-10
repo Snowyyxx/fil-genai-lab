@@ -1,0 +1,37 @@
+# LiteLLM proxy config — maps friendly names to open-source Ollama models.
+# Docs: https://docs.litellm.ai/docs/proxy/configs
+#
+# `ollama_chat/` (not `ollama/`) uses Ollama's chat endpoint, which applies the
+# model's chat template correctly — better results for instruct models.
+
+model_list:
+  - model_name: llama3.2                     # the name your app calls
+    litellm_params:
+      model: ollama_chat/llama3.2:1b         # the actual Ollama model
+      api_base: http://ollama:11434          # the ollama service in compose
+
+  - model_name: qwen2.5
+    litellm_params:
+      model: ollama_chat/qwen2.5:1.5b
+      api_base: http://ollama:11434
+
+  # Mid-size model for the agentic recommender (tool/function calling).
+  # 3b fits Docker's ~3.5GB memory; 7b gets OOM-killed there.
+  - model_name: qwen2.5-3b
+    litellm_params:
+      model: ollama_chat/qwen2.5:3b
+      api_base: http://ollama:11434
+
+litellm_settings:
+  drop_params: true       # silently drop params a model doesn't support
+  request_timeout: 600    # local CPU inference can be slow — be generous
+  # Trace every request/response to LangSmith (uses LANGSMITH_API_KEY env var).
+  success_callback: ["langsmith"]
+  failure_callback: ["langsmith"]
+
+general_settings:
+  # Auth: requests must send  Authorization: Bearer <LITELLM_MASTER_KEY>
+  # The proxy reads LITELLM_MASTER_KEY from the environment automatically.
+  master_key: os.environ/LITELLM_MASTER_KEY
+  # Postgres (DATABASE_URL env) backs the admin console: keys, users, usage.
+  store_model_in_db: true

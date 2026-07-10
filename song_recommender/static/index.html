@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agentic Song Recommender</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#181b22; --ink:#e6e8ec; --muted:#9aa3b2;
+    --line:#262b36; --accent:#e08a5b; --accent2:#6ea8fe; --good:#5bd08a;
+    --mono:'SFMono-Regular',ui-monospace,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  header{padding:26px 22px 16px;border-bottom:1px solid var(--line);
+    background:radial-gradient(900px 300px at 30% -100px,#20242f,transparent)}
+  header h1{margin:0 0 4px;font-size:22px;letter-spacing:-.3px}
+  header p{margin:0;color:var(--muted);font-size:13.5px}
+  main{max-width:900px;margin:0 auto;padding:20px}
+  .form{display:grid;grid-template-columns:1fr 1fr;gap:14px;background:var(--panel);
+    border:1px solid var(--line);border-radius:14px;padding:18px}
+  .form label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}
+  .form .full{grid-column:1 / -1}
+  input,select{width:100%;padding:9px 11px;background:#11141a;color:var(--ink);
+    border:1px solid var(--line);border-radius:9px;font:inherit}
+  .row{display:flex;gap:12px;align-items:center;margin-top:4px}
+  button{padding:11px 20px;border:none;border-radius:10px;font-weight:600;cursor:pointer}
+  #go{background:var(--accent);color:#20140c}
+  #go:disabled{opacity:.5;cursor:not-allowed}
+  .steps{font:12px/1.5 var(--mono);color:var(--muted);margin:14px 2px}
+  .steps b{color:var(--accent2)}
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:6px}
+  @media(max-width:640px){.form,.cards{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .card .t{font-size:16px;font-weight:600}
+  .card .a{color:var(--accent);font-size:13.5px;margin:2px 0 8px}
+  .card .meta{font:11px/1 var(--mono);color:var(--muted);margin-bottom:8px}
+  .card .meta span{border:1px solid var(--line);border-radius:999px;padding:3px 7px;margin-right:5px}
+  .card .why{font-size:13px;color:#cfd6e2}
+  .card .fb{margin-top:10px;display:flex;gap:8px}
+  .card .fb button{padding:5px 10px;font-size:13px;background:#11141a;color:var(--muted);
+    border:1px solid var(--line);border-radius:8px}
+  .card .fb button.liked{background:#14311f;color:var(--good);border-color:#245a3a}
+  .empty{color:var(--muted);text-align:center;margin-top:40px}
+  .badge{font:11px/1 var(--mono);padding:3px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+  .badge.agent{color:var(--good);border-color:#245a3a}
+  .badge.fallback{color:var(--accent);border-color:#5a4634}
+</style>
+</head>
+<body>
+<header>
+  <h1>🎵 Agentic Song Recommender</h1>
+  <p>An LLM agent plans → <b>searches the web</b> → personalizes → explains. Local model via LiteLLM; traced in LangSmith.</p>
+</header>
+<main>
+  <div class="form">
+    <div>
+      <label>Language</label>
+      <select id="language">
+        <option value="">Any</option>
+        <option>Urdu</option><option>Hindi</option><option>Punjabi</option>
+        <option>English</option><option>Tamil</option><option>Instrumental</option>
+      </select>
+    </div>
+    <div>
+      <label>Type / Genre</label>
+      <select id="genre">
+        <option value="">Any</option>
+        <option>Qawwali</option><option>Bollywood</option><option>Sufi</option>
+        <option>Ghazal</option><option>Punjabi Pop</option><option>Punjabi Hip-Hop</option>
+        <option>Pop</option><option>Rock</option><option>Bhajan</option><option>Lo-Fi</option>
+      </select>
+    </div>
+    <div>
+      <label>Mood</label>
+      <select id="mood">
+        <option value="">Any</option>
+        <option>devotional</option><option>romantic</option><option>party</option>
+        <option>chill</option><option>melancholy</option><option>energetic</option>
+      </select>
+    </div>
+    <div>
+      <label>How many</label>
+      <input id="count" type="number" value="6" min="1" max="12">
+    </div>
+    <div class="full">
+      <label>Current taste (artists / songs / vibe you like)</label>
+      <input id="seed" placeholder="e.g. Nusrat Fateh Ali Khan, Rahat — devotional qawwali">
+    </div>
+    <div class="full row">
+      <button id="go">Recommend</button>
+      <span id="status" class="steps"></span>
+    </div>
+  </div>
+
+  <div id="out"></div>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const USER = "demo";
+
+async function recommend(){
+  const body = {
+    user_id: USER,
+    language: $("#language").value,
+    genre: $("#genre").value,
+    mood: $("#mood").value,
+    seed: $("#seed").value.trim(),
+    count: parseInt($("#count").value) || 6,
+  };
+  $("#go").disabled = true;
+  $("#status").innerHTML = "agent thinking… (planning → searching → ranking)";
+  $("#out").innerHTML = "";
+  try{
+    const r = await fetch("/recommend", {method:"POST",
+      headers:{"Content-Type":"application/json"}, body: JSON.stringify(body)});
+    const j = await r.json();
+    if(!r.ok) throw new Error(j.detail || "error");
+    render(j);
+  }catch(e){
+    $("#out").innerHTML = `<div class="empty">⚠ ${e.message}</div>`;
+  }finally{
+    $("#go").disabled = false;
+    $("#status").innerHTML = "";
+  }
+}
+
+function render(j){
+  const recs = j.recommendations || [];
+  const steps = (j.steps || []).map(s => `<b>${s}</b>`).join(" → ") || "—";
+  const badge = j.mode === "agent"
+    ? '<span class="badge agent">agent loop</span>'
+    : '<span class="badge fallback">fallback</span>';
+  let html = `<div class="steps">${badge} &nbsp; agent steps: ${steps}</div>`;
+  if(!recs.length){ html += '<div class="empty">No matches — try broadening the filters.</div>'; }
+  else{
+    html += '<div class="cards">' + recs.map(cardHtml).join("") + '</div>';
+  }
+  $("#out").innerHTML = html;
+}
+
+function cardHtml(r){
+  const yt = "https://www.youtube.com/results?search_query=" +
+             encodeURIComponent((r.title||"") + " " + (r.artist||""));
+  const src = r.url ? ` · <a href="${esc(r.url)}" target="_blank" rel="noopener">preview ↗</a>` : "";
+  const chips = [r.genre, r.year].filter(Boolean)
+    .map(x => `<span>${esc(String(x))}</span>`).join("");
+  const t = (r.title||"").replace(/'/g,"\\'");
+  const a = (r.artist||"").replace(/'/g,"\\'");
+  return `<div class="card">
+    <div class="t">${esc(r.title)}</div>
+    <div class="a">${esc(r.artist||"—")}</div>
+    ${chips ? `<div class="meta">${chips}</div>` : ""}
+    <div class="why">${esc(r.reason||"")}</div>
+    <div class="meta"><a href="${yt}" target="_blank" rel="noopener">▶ YouTube</a>${src}</div>
+    <div class="fb">
+      <button onclick="fb('${t}','${a}', true, this)">👍 Like</button>
+      <button onclick="fb('${t}','${a}', false, this)">👎</button>
+    </div>
+  </div>`;
+}
+
+async function fb(title, artist, liked, btn){
+  btn.classList.toggle("liked", liked);
+  await fetch("/feedback", {method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({user_id: USER, title, artist, liked})});
+  // liked songs now shape the next recommendation via the taste profile
+}
+
+function esc(s){ return (s||"").replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+$("#go").addEventListener("click", recommend);
+$("#seed").addEventListener("keydown", e => { if(e.key==="Enter") recommend(); });
+</script>
+</body>
+</html>

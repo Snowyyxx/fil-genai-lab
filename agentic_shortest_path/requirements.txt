@@ -1,0 +1,6 @@
+# Agentic Shortest Path — open-source agentic AI stack
+langgraph>=0.2.60
+langchain-core>=0.3.0
+langchain-ollama>=0.2.0      # default backend (local models via Ollama)
+langchain-openai>=0.2.0      # optional: any OpenAI-compatible local server (vLLM, llama.cpp, LM Studio)
+streamlit>=1.37

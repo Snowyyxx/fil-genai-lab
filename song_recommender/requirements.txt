@@ -1,0 +1,10 @@
+fastapi>=0.110
+uvicorn[standard]>=0.29
+langgraph>=0.2              # agent orchestration (state machine)
+langchain-openai>=0.2       # ChatOpenAI pointed at the LiteLLM gateway
+langsmith>=0.1.100          # tracing
+sentence-transformers>=2.2  # cosine-similarity guardrail (embeds song titles)
+numpy<2                     # pinned <2 for the sentence-transformers stack
+python-dotenv>=1.0
+pydantic>=2.0
+grandalf                    # optional: GRAPH.get_graph().draw_ascii()
