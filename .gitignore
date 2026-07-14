@@ -1,0 +1,9 @@
+
+# secrets
+.env
+**/.env
+.venv/
+**/.venv/
+
+# AWS key export CSVs (downloaded from IAM console)
+*accessKeys*.csv

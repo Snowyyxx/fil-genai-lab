@@ -1,0 +1,9 @@
+fastapi>=0.104.0
+uvicorn>=0.24.0
+pydantic>=2.5.0
+fastmcp>=0.8.0
+langchain-mcp-adapters>=0.3.0
+langgraph
+langchain-aws
+boto3
+python-dotenv

@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>aws-mcp-agent · System Design</title>
+<style>
+  :root{
+    --bg:#f4f6fb; --panel:#ffffff; --panel2:#eef2fa; --ink:#111726; --muted:#586080;
+    --line:#d7deee; --accent:#0c8f86; --accent-soft:#0c8f8618;
+    --deployer:#b5710a; --deployer-soft:#b5710a14;
+    --runtime:#1f8a4c; --runtime-soft:#1f8a4c14;
+    --code-bg:#0c1222; --code-ink:#d6def0;
+    --radius:12px;
+    --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --bg:#0a0f1e; --panel:#0f1526; --panel2:#131b30; --ink:#e7ebf5; --muted:#8b93a7;
+      --line:#1f2740; --accent:#3bd6c6; --accent-soft:#3bd6c61a;
+      --deployer:#f0a542; --deployer-soft:#f0a5421a;
+      --runtime:#45c47f; --runtime-soft:#45c47f1a;
+      --code-bg:#070b16; --code-ink:#d6def0;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0a0f1e; --panel:#0f1526; --panel2:#131b30; --ink:#e7ebf5; --muted:#8b93a7;
+    --line:#1f2740; --accent:#3bd6c6; --accent-soft:#3bd6c61a;
+    --deployer:#f0a542; --deployer-soft:#f0a5421a;
+    --runtime:#45c47f; --runtime-soft:#45c47f1a;
+    --code-bg:#070b16; --code-ink:#d6def0;
+  }
+  :root[data-theme="light"]{
+    --bg:#f4f6fb; --panel:#ffffff; --panel2:#eef2fa; --ink:#111726; --muted:#586080;
+    --line:#d7deee; --accent:#0c8f86; --accent-soft:#0c8f8618;
+    --deployer:#b5710a; --deployer-soft:#b5710a14;
+    --runtime:#1f8a4c; --runtime-soft:#1f8a4c14;
+    --code-bg:#0c1222; --code-ink:#d6def0;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+       line-height:1.6;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1000px;margin:0 auto;padding:0 22px}
+  a{color:var(--accent)}
+
+  /* ---- top bar ---- */
+  .topbar{position:sticky;top:0;z-index:10;background:color-mix(in srgb,var(--bg) 88%,transparent);
+          backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+  .topbar .wrap{display:flex;align-items:center;gap:12px;height:54px}
+  .brand{font-family:var(--mono);font-weight:600;font-size:14px;letter-spacing:-.02em}
+  .brand .sq{color:var(--accent)}
+  .nav{margin-left:auto;display:flex;gap:18px;font-size:13px}
+  .nav a{color:var(--muted);text-decoration:none}
+  .nav a:hover{color:var(--ink)}
+  .toggle{background:var(--panel2);border:1px solid var(--line);color:var(--muted);
+          border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer;font-family:var(--mono)}
+  @media(max-width:680px){.nav{display:none}}
+
+  /* ---- hero ---- */
+  .hero{padding:60px 0 34px}
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;
+           color:var(--accent)}
+  h1{font-size:clamp(30px,5vw,46px);line-height:1.08;letter-spacing:-.03em;margin:.35em 0 .3em;
+     text-wrap:balance;font-weight:700}
+  .lede{font-size:18px;color:var(--muted);max-width:64ch}
+  .status{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px;align-items:center}
+  .chip{font-family:var(--mono);font-size:12px;border:1px solid var(--line);background:var(--panel);
+        border-radius:20px;padding:5px 12px;color:var(--muted)}
+  .chip.live{color:var(--runtime);border-color:color-mix(in srgb,var(--runtime) 40%,var(--line))}
+  .chip .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--runtime);
+             margin-right:6px;box-shadow:0 0 7px var(--runtime)}
+  .chip code{font-family:var(--mono)}
+
+  /* ---- sections ---- */
+  section{padding:34px 0;border-top:1px solid var(--line)}
+  .kicker{font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;
+          color:var(--muted)}
+  h2{font-size:26px;letter-spacing:-.02em;margin:.25em 0 .1em;font-weight:700;text-wrap:balance}
+  h3{font-size:17px;margin:1.4em 0 .3em;letter-spacing:-.01em}
+  p{max-width:70ch}
+  .muted{color:var(--muted)}
+  .why{border-left:3px solid var(--accent);background:var(--accent-soft);padding:12px 16px;
+       border-radius:0 8px 8px 0;margin:14px 0;font-size:15px}
+  .why b{color:var(--accent)}
+
+  /* ---- flow diagram ---- */
+  .plane{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+         padding:18px;margin:14px 0}
+  .plane-label{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;
+               color:var(--muted);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+  .plane-label::after{content:"";flex:1;height:1px;background:var(--line)}
+  .flow{display:flex;flex-direction:column;gap:0;align-items:center}
+  .node{width:100%;max-width:560px;background:var(--panel2);border:1px solid var(--line);
+        border-left:3px solid var(--line);border-radius:10px;padding:11px 14px}
+  .node .k{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--ink)}
+  .node .d{font-size:12.5px;color:var(--muted);margin-top:2px}
+  .node.accent{border-left-color:var(--accent)}
+  .node.deployer{border-left-color:var(--deployer);background:var(--deployer-soft)}
+  .node.runtime{border-left-color:var(--runtime);background:var(--runtime-soft)}
+  .arrow{font-family:var(--mono);color:var(--muted);font-size:12px;padding:7px 0;text-align:center;
+         display:flex;flex-direction:column;align-items:center;gap:1px}
+  .arrow .lbl{font-size:11px;opacity:.85}
+  .arrow .ln{font-size:15px;line-height:1;color:var(--accent)}
+  .lane{display:flex;gap:12px;width:100%;max-width:560px;justify-content:center;flex-wrap:wrap}
+  .lane .node{max-width:none;flex:1;min-width:200px}
+  .tagline{font-family:var(--mono);font-size:11px;color:var(--muted);text-align:center;margin-top:6px}
+
+  /* legend */
+  .legend{display:flex;gap:18px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin:6px 0 2px}
+  .legend span{display:flex;align-items:center;gap:7px}
+  .legend i{width:11px;height:11px;border-radius:3px;display:inline-block}
+  .sw-dep{background:var(--deployer)} .sw-run{background:var(--runtime)} .sw-acc{background:var(--accent)}
+
+  /* ---- two-identity compare ---- */
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:8px}
+  @media(max-width:680px){.cols{grid-template-columns:1fr}}
+  .card{border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;background:var(--panel)}
+  .card.dep{border-top:3px solid var(--deployer)}
+  .card.run{border-top:3px solid var(--runtime)}
+  .card h4{margin:0 0 2px;font-size:15px;font-family:var(--mono)}
+  .card .role{font-size:12px;color:var(--muted);margin-bottom:10px}
+  .card.dep h4{color:var(--deployer)} .card.run h4{color:var(--runtime)}
+  .card ul{margin:0;padding-left:18px;font-size:14px}
+  .card li{margin:5px 0}
+
+  /* ---- pipeline steps ---- */
+  .steps{counter-reset:s;display:flex;flex-direction:column;gap:10px;margin-top:10px}
+  .step{display:grid;grid-template-columns:34px 1fr;gap:14px;align-items:start;
+        border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:var(--panel)}
+  .step::before{counter-increment:s;content:counter(s,decimal-leading-zero);font-family:var(--mono);
+                font-size:13px;color:var(--accent);border:1px solid var(--line);border-radius:7px;
+                width:34px;height:34px;display:flex;align-items:center;justify-content:center}
+  .step .t{font-weight:600;font-size:14.5px}
+  .step .t code{font-family:var(--mono);font-size:12.5px;background:var(--panel2);padding:1px 6px;
+                border-radius:5px}
+  .step .x{font-size:13.5px;color:var(--muted);margin-top:2px}
+
+  /* ---- tables ---- */
+  .tblwrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius);margin-top:10px}
+  table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:520px}
+  th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;
+     color:var(--muted);background:var(--panel2)}
+  tr:last-child td{border-bottom:0}
+  td code,.inline{font-family:var(--mono);font-size:12.5px;background:var(--panel2);padding:1px 6px;
+                  border-radius:5px}
+
+  /* ---- gotchas ---- */
+  .gotchas{display:flex;flex-direction:column;gap:10px;margin-top:8px}
+  .g{border:1px solid var(--line);border-left:3px solid var(--deployer);border-radius:8px;
+     padding:12px 15px;background:var(--panel)}
+  .g .h{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--ink)}
+  .g .f{font-size:13.5px;color:var(--muted);margin-top:3px}
+  .g .f b{color:var(--runtime)}
+
+  /* ---- code block ---- */
+  pre{background:var(--code-bg);color:var(--code-ink);border-radius:10px;padding:14px 16px;
+      overflow-x:auto;font-family:var(--mono);font-size:12.5px;line-height:1.55;border:1px solid var(--line)}
+  pre .c{color:#7c88a8}
+
+  footer{padding:34px 0 60px;border-top:1px solid var(--line);color:var(--muted);font-size:13px}
+  .callout{border:1px solid color-mix(in srgb,var(--deployer) 45%,var(--line));
+           background:var(--deployer-soft);border-radius:10px;padding:14px 16px;margin-top:12px;font-size:14px}
+  .callout b{color:var(--deployer)}
+</style>
+</head>
+<body>
+<div class="topbar"><div class="wrap">
+  <span class="brand"><span class="sq">▦</span> aws-mcp-agent</span>
+  <nav class="nav">
+    <a href="#design">System design</a>
+    <a href="#flow">Request flow</a>
+    <a href="#iam">IAM model</a>
+    <a href="#deploy">Deploy</a>
+    <a href="#why">Decisions</a>
+  </nav>
+  <button class="toggle" id="themeBtn" aria-label="Toggle theme">◐ theme</button>
+</div></div>
+
+<header class="hero"><div class="wrap">
+  <div class="eyebrow">System design · LangGraph × MCP × Bedrock × ECS Fargate</div>
+  <h1>An AI agent that calls tools over MCP, deployed to the cloud with zero keys in the container.</h1>
+  <p class="lede">A FastAPI service wraps a LangGraph ReAct agent. The agent reasons with Amazon
+  Bedrock and acts through an MCP tool server. It runs as a container on ECS Fargate and reaches
+  Bedrock through an inherited <b>task role</b> — no credentials are ever baked into the image.</p>
+  <div class="status">
+    <span class="chip live"><span class="dot"></span>Live on Fargate</span>
+    <span class="chip">GET/POST <code>:8000</code> · <code>/ /chat /solve /health</code></span>
+    <span class="chip">model <code>eu.amazon.nova-lite-v1:0</code></span>
+    <span class="chip">region <code>eu-north-1</code></span>
+  </div>
+</div></header>
+
+<main class="wrap">
+
+  <!-- ============ WHAT ============ -->
+  <section id="what">
+    <div class="kicker">What it is</div>
+    <h2>One agent, two planes</h2>
+    <p>The whole project splits cleanly in two. A <b>build plane</b> (run once from a laptop) provisions
+    cloud infrastructure and ships a Docker image. A <b>serve plane</b> (the running container) answers
+    HTTP requests by looping an LLM against a tool. The single most important idea is that these two
+    planes use <em>different identities</em> — which is what the colors below track.</p>
+    <div class="legend">
+      <span><i class="sw-dep"></i> Deployer identity — IAM user, static keys (build only)</span>
+      <span><i class="sw-run"></i> Runtime identity — task role, temporary creds (serve only)</span>
+      <span><i class="sw-acc"></i> Data / control flow</span>
+    </div>
+  </section>
+
+  <!-- ============ SYSTEM DESIGN DIAGRAM ============ -->
+  <section id="design">
+    <div class="kicker">The big picture</div>
+    <h2>System design</h2>
+
+    <div class="plane">
+      <div class="plane-label">Build plane — offline, from your laptop</div>
+      <div class="flow">
+        <div class="node deployer"><div class="k">Deployer — IAM user <span class="inline">BedrockAPIKey-atfm</span></div>
+          <div class="d">Long-lived access keys in a gitignored <code>.env</code>. The only identity that exists before any infra.</div></div>
+        <div class="arrow"><span class="ln">↓</span><span class="lbl">deploy.py · boto3</span></div>
+        <div class="lane">
+          <div class="node accent"><div class="k">ECR repo</div><div class="d">image registry</div></div>
+          <div class="node accent"><div class="k">IAM roles</div><div class="d">task + execution</div></div>
+          <div class="node accent"><div class="k">ECS + Logs + SG</div><div class="d">cluster · CloudWatch · :8000</div></div>
+        </div>
+        <div class="arrow"><span class="ln">↓</span><span class="lbl">docker build → push (image, no secrets)</span></div>
+        <div class="node accent"><div class="k">ECR : aws-mcp-agent:latest</div>
+          <div class="d">immutable artifact the task pulls at launch</div></div>
+      </div>
+    </div>
+
+    <div class="arrow"><span class="ln">⇣</span><span class="lbl">the task starts and assumes its role</span></div>
+
+    <div class="plane">
+      <div class="plane-label">Serve plane — the running Fargate task</div>
+      <div class="flow">
+        <div class="node"><div class="k">Internet · Browser / curl</div><div class="d">HTTP to the task's public IP on port 8000</div></div>
+        <div class="arrow"><span class="ln">↓</span></div>
+        <div class="node accent"><div class="k">FastAPI · uvicorn</div>
+          <div class="d">routes: <code>/</code> (chat UI) · <code>/chat</code> · <code>/solve</code> · <code>/health</code></div></div>
+        <div class="arrow"><span class="ln">↓</span><span class="lbl">agent.ainvoke(messages)</span></div>
+        <div class="node accent"><div class="k">LangGraph ReAct agent</div>
+          <div class="d">reason → act loop; decides when a tool is needed</div></div>
+        <div class="lane">
+          <div class="node"><div class="k">↔ MCP server (stdio)</div>
+            <div class="d">subprocess <code>math_tools.py</code> · tool <code>calculate_expression</code></div></div>
+          <div class="node accent"><div class="k">↔ Amazon Bedrock</div>
+            <div class="d">Converse API · Nova Lite · the model's reasoning</div></div>
+        </div>
+        <div class="arrow"><span class="ln">↑</span><span class="lbl">temporary credentials — injected, never stored</span></div>
+        <div class="node runtime"><div class="k">Task role <span class="inline">mcpAgentTaskRole</span></div>
+          <div class="d">policy: <code>bedrock:InvokeModel</code>. The task assumes it; the container holds no keys.</div></div>
+        <div class="node runtime"><div class="k">Execution role <span class="inline">mcpAgentExecutionRole</span></div>
+          <div class="d">used by ECS itself to pull the image from ECR and ship logs to CloudWatch.</div></div>
+      </div>
+      <div class="tagline">no AWS keys anywhere in this plane — only the two roles</div>
+    </div>
+  </section>
+
+  <!-- ============ REQUEST FLOW ============ -->
+  <section id="flow">
+    <div class="kicker">How a message becomes an answer</div>
+    <h2>Request flow (the ReAct loop)</h2>
+    <p>When you type <span class="inline">“What is 47*89 + sqrt(144)?”</span> into the chat UI, this is
+    what happens inside the running task:</p>
+    <div class="steps">
+      <div class="step"><div><div class="t">Browser POSTs to <code>/chat</code></div>
+        <div class="x">Same-origin as the UI, so no CORS or mixed-content problem — the page is served by the same FastAPI app.</div></div></div>
+      <div class="step"><div><div class="t">Agent asks the model what to do</div>
+        <div class="x">The message + tool schemas go to Bedrock Nova via the Converse API. The model sees a <code>calculate_expression</code> tool is available.</div></div></div>
+      <div class="step"><div><div class="t">Model emits a tool call</div>
+        <div class="x">Instead of guessing arithmetic, it returns “call calculate_expression('47*89 + sqrt(144)')”. LangGraph routes this to the MCP server over stdio.</div></div></div>
+      <div class="step"><div><div class="t">MCP tool computes and returns</div>
+        <div class="x">The Python function evaluates it in a restricted namespace and returns <code>4195</code> back through MCP to the agent.</div></div></div>
+      <div class="step"><div><div class="t">Model composes the final answer</div>
+        <div class="x">The tool result is fed back to Bedrock, which writes the natural-language reply. The loop ends when there are no more tool calls.</div></div></div>
+      <div class="step"><div><div class="t">FastAPI returns JSON</div>
+        <div class="x"><code>{ "answer": "...4195", "tool_invocations": 3 }</code> — the UI renders the answer and a “🔧 tool calls” badge.</div></div></div>
+    </div>
+    <div class="why"><b>Why an agent and not one LLM call?</b> The model is good at reasoning but bad at exact
+    arithmetic. The ReAct loop lets it <em>delegate</em> the parts it's unreliable at to a deterministic
+    tool — the essence of tool-using agents.</div>
+  </section>
+
+  <!-- ============ IAM ============ -->
+  <section id="iam">
+    <div class="kicker">The core lesson · why two identities</div>
+    <h2>The two-identity IAM model</h2>
+    <p>Newcomers ask: “if roles are safer, why have an IAM user at all?” Because a role must be
+    <em>assumed by an already-authenticated principal</em> — a role can't bootstrap itself. Something has
+    to make the first call. That bootstrap is the user; everything after is roles.</p>
+    <div class="cols">
+      <div class="card dep">
+        <h4>◆ Deployer</h4>
+        <div class="role">IAM user + static keys · lives on your laptop (outside AWS)</div>
+        <ul>
+          <li><b>Job:</b> build the infra — push image, create ECS &amp; roles.</li>
+          <li><b>Creds:</b> long-lived access key + secret in <span class="inline">.env</span>.</li>
+          <li><b>Used by:</b> <span class="inline">deploy.py</span>, once.</li>
+          <li><b>Risk:</b> keys are permanent → must be gitignored &amp; rotated.</li>
+          <li><b>Upgrade path:</b> replace with SSO / GitHub OIDC (temp creds).</li>
+        </ul>
+      </div>
+      <div class="card run">
+        <h4>◆ Runtime</h4>
+        <div class="role">Task role · lives inside AWS (the running task)</div>
+        <ul>
+          <li><b>Job:</b> run the app — call <span class="inline">bedrock:InvokeModel</span>.</li>
+          <li><b>Creds:</b> temporary, auto-rotated, injected by ECS.</li>
+          <li><b>Used by:</b> the container, on every request.</li>
+          <li><b>Risk:</b> low — if leaked, they expire on their own.</li>
+          <li><b>Keys in code:</b> none. That's the whole point.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="why"><b>The rule:</b> identities <em>inside</em> AWS (EC2, ECS, Lambda) get a role automatically —
+    no user needed. Identities <em>outside</em> AWS (a laptop, external CI) need a pre-existing credential —
+    a user, or SSO. Our task is inside → role. Our laptop is outside → user.</div>
+  </section>
+
+  <!-- ============ DEPLOY ============ -->
+  <section id="deploy">
+    <div class="kicker">How it got to the cloud</div>
+    <h2>Deploy pipeline</h2>
+    <p class="muted">Every step is in <span class="inline">deploy.py</span> and is idempotent (create-or-reuse), so the whole thing re-runs safely.</p>
+    <div class="steps">
+      <div class="step"><div><div class="t">Create the ECR repository</div>
+        <div class="x">A private registry to hold the image. <code>deploy.py ecr</code></div></div></div>
+      <div class="step"><div><div class="t">Build &amp; push the image</div>
+        <div class="x">Docker build → get an ECR token via boto3 → docker login → push <code>:latest</code>.</div></div></div>
+      <div class="step"><div><div class="t">Create the two IAM roles</div>
+        <div class="x">Execution role (pull image + logs) and task role (<code>bedrock:InvokeModel</code>) — both trusting <code>ecs-tasks.amazonaws.com</code>.</div></div></div>
+      <div class="step"><div><div class="t">Create the CloudWatch log group</div>
+        <div class="x"><code>/ecs/aws-mcp-agent</code> — where container stdout/stderr lands.</div></div></div>
+      <div class="step"><div><div class="t">Create the Fargate cluster</div>
+        <div class="x">Needed the ECS service-linked role to exist first (created once per account).</div></div></div>
+      <div class="step"><div><div class="t">Register the task definition</div>
+        <div class="x">Fargate, 0.5 vCPU / 1 GB, image + both role ARNs + awslogs. Env has region &amp; model only — <b>no keys</b>.</div></div></div>
+      <div class="step"><div><div class="t">Run the service with a public IP</div>
+        <div class="x">Default-VPC subnets + a security group open on 8000, <code>assignPublicIp=ENABLED</code>. No load balancer.</div></div></div>
+      <div class="step"><div><div class="t">Resolve the public IP &amp; verify</div>
+        <div class="x">Poll the task → its ENI → public IP, then curl <code>/health</code> and <code>/chat</code>.</div></div></div>
+    </div>
+  </section>
+
+  <!-- ============ STACK ============ -->
+  <section id="stack">
+    <div class="kicker">The pieces</div>
+    <h2>Tech stack &amp; what each part does</h2>
+    <div class="tblwrap"><table>
+      <thead><tr><th>Component</th><th>Layer</th><th>Responsibility</th></tr></thead>
+      <tbody>
+        <tr><td><code>FastAPI</code> + <code>uvicorn</code></td><td>API / UI</td><td>HTTP endpoints and the served chat page. A thin, stateless front door.</td></tr>
+        <tr><td><code>LangGraph</code></td><td>Agent</td><td><code>create_react_agent</code> — the reason/act loop that decides when to call a tool.</td></tr>
+        <tr><td><code>langchain-aws</code></td><td>Model</td><td><code>ChatBedrockConverse</code> — talks to Bedrock's Converse API.</td></tr>
+        <tr><td>Amazon Bedrock (Nova Lite)</td><td>LLM</td><td>The reasoning engine. No Anthropic use-case form required.</td></tr>
+        <tr><td><code>fastmcp</code></td><td>Tools</td><td>Exposes <code>calculate_expression</code> as an MCP tool over stdio.</td></tr>
+        <tr><td><code>langchain-mcp-adapters</code></td><td>Glue</td><td>Loads MCP tools and hands them to the LangGraph agent.</td></tr>
+        <tr><td>Docker + ECR</td><td>Package</td><td>Reproducible image; private registry.</td></tr>
+        <tr><td>ECS Fargate</td><td>Runtime</td><td>Serverless containers — no EC2 hosts to manage.</td></tr>
+        <tr><td>IAM roles</td><td>Identity</td><td>Task role (Bedrock) + execution role (pull/logs). No keys in the image.</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <!-- ============ DECISIONS ============ -->
+  <section id="why">
+    <div class="kicker">Why these choices</div>
+    <h2>Design decisions</h2>
+    <h3>MCP over stdio, in-container</h3>
+    <p class="muted">The agent launches the tool server as a subprocess and talks over stdin/stdout. One
+    container, one process tree, no extra networking — the simplest thing that makes the MCP wiring real.
+    (For many tool servers or independent scaling you'd switch to HTTP transport.)</p>
+    <h3>Amazon Nova instead of Claude</h3>
+    <p class="muted">Claude on Bedrock needs a one-time Anthropic “use-case details” form per account. Nova
+    needs no form and supports tool-calling — so it unblocked the build immediately. The model id is a
+    single env var, so swapping back to Claude later is one line.</p>
+    <h3>Public IP, no load balancer</h3>
+    <p class="muted">Cheapest and simplest for a learning deploy — the task gets a public IP directly.
+    Trade-off: the IP changes on redeploy and there's no health-based routing. An ALB (≈$16/mo) buys a
+    stable URL and rolling health checks when it's worth it.</p>
+    <h3>Zero credentials in the image</h3>
+    <p class="muted">The Dockerfile copies only code; <span class="inline">.dockerignore</span> excludes
+    <span class="inline">.env</span> and key files. Locally we inject creds with <code>--env-file</code>;
+    on Fargate the task role fills that gap. The image is safe to push to a registry.</p>
+  </section>
+
+  <!-- ============ GOTCHAS ============ -->
+  <section id="gotchas">
+    <div class="kicker">Things that bit us (and the fix)</div>
+    <h2>Gotchas</h2>
+    <div class="gotchas">
+      <div class="g"><div class="h">Bare Bedrock model id → ValidationException</div>
+        <div class="f">Nova/Claude 4.x need the regional inference-profile prefix. <b>Fix: use <code>eu.amazon.nova-lite-v1:0</code>, not <code>amazon.nova-…</code>.</b></div></div>
+      <div class="g"><div class="h">Claude → “use case details not submitted”</div>
+        <div class="f">Anthropic models are gated behind a one-time console form. <b>Fix: switched to Amazon Nova (no form).</b></div></div>
+      <div class="g"><div class="h">ECR docker login failed — <code>pass</code> store empty</div>
+        <div class="f">Docker Desktop's credential helper was uninitialized. <b>Fix: a temp <code>DOCKER_CONFIG</code> (no credsStore) + explicit <code>DOCKER_HOST</code>.</b></div></div>
+      <div class="g"><div class="h">CreateCluster → “service-linked role” error</div>
+        <div class="f">First-ever ECS use in the account. <b>Fix: <code>create_service_linked_role(AWSServiceName="ecs.amazonaws.com")</code>, then retry.</b></div></div>
+      <div class="g"><div class="h">Secret pasted into <code>requirements.txt</code></div>
+        <div class="f">A base64 key broke <code>pip install</code> in the build. <b>Fix: removed the line; gitignored all key files.</b></div></div>
+    </div>
+  </section>
+
+  <!-- ============ COST ============ -->
+  <section id="cost">
+    <div class="kicker">Operating it</div>
+    <h2>Cost &amp; teardown</h2>
+    <p>The Fargate task runs 24/7 (~0.5 vCPU / 1 GB ≈ <b>$15/mo</b>) until stopped; ECR storage is pennies.
+    Bedrock is billed per token on each <code>/chat</code>.</p>
+    <div class="callout"><b>Two open risks while it's up:</b> port 8000 is reachable by anyone
+    (<code>0.0.0.0/0</code>) and each call spends Bedrock money; and the deployer keys were shared in chat —
+    rotate them. Lock the security group to your IP, or tear down when done.</div>
+    <h3>Tear it down</h3>
+    <pre><span class="c"># stop the meter: drain, delete service, delete cluster</span>
+update_service(cluster="mcp-cluster", service="aws-mcp-agent-svc", desiredCount=0)
+delete_service(cluster="mcp-cluster", service="aws-mcp-agent-svc", force=True)
+delete_cluster(cluster="mcp-cluster")</pre>
+  </section>
+
+</main>
+
+<footer><div class="wrap">
+  aws-mcp-agent · LangGraph × MCP × Amazon Bedrock, containerized and deployed to ECS Fargate.
+  Deployer builds with a user; the app runs on a role. Keys never ship.
+</div></footer>
+
+<script>
+  (function(){
+    var root=document.documentElement, btn=document.getElementById('themeBtn');
+    function cur(){ return root.getAttribute('data-theme')
+      || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark':'light'); }
+    btn.addEventListener('click', function(){
+      var next = cur()==='dark' ? 'light':'dark';
+      root.setAttribute('data-theme', next);
+    });
+  })();
+</script>
+</body>
+</html>

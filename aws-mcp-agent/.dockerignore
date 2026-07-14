@@ -1,0 +1,10 @@
+# Never bake secrets or local cruft into the image
+.env
+*.env
+*accessKeys*.csv
+.venv/
+__pycache__/
+*.pyc
+.git/
+Dockerfile
+.dockerignore
