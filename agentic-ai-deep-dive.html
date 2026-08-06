@@ -1,0 +1,700 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Agentic AI · Deep Dive, Tech &amp; Skillset</title>
+<style>
+  :root{
+    --bg:#f4f6fb; --panel:#fff; --panel2:#eef2fa; --ink:#111726; --muted:#5a6280;
+    --line:#d7deee; --accent:#0c8f86; --accent-soft:#0c8f8615;
+    --warn:#b5710a; --warn-soft:#b5710a12;
+    --good:#1f8a4c; --good-soft:#1f8a4c12;
+    --bad:#c0392b; --bad-soft:#c0392b12;
+    --code-bg:#0c1222; --code-ink:#d6def0;
+    --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{--bg:#0a0f1e;--panel:#0f1526;--panel2:#131b30;--ink:#e7ebf5;--muted:#8b93a7;
+      --line:#1f2740;--accent:#3bd6c6;--accent-soft:#3bd6c618;--warn:#f0a542;--warn-soft:#f0a54216;
+      --good:#45c47f;--good-soft:#45c47f16;--bad:#f0736a;--bad-soft:#f0736a16;--code-bg:#070b16;}
+  }
+  :root[data-theme="dark"]{--bg:#0a0f1e;--panel:#0f1526;--panel2:#131b30;--ink:#e7ebf5;--muted:#8b93a7;
+    --line:#1f2740;--accent:#3bd6c6;--accent-soft:#3bd6c618;--warn:#f0a542;--warn-soft:#f0a54216;
+    --good:#45c47f;--good-soft:#45c47f16;--bad:#f0736a;--bad-soft:#f0736a16;--code-bg:#070b16;}
+  :root[data-theme="light"]{--bg:#f4f6fb;--panel:#fff;--panel2:#eef2fa;--ink:#111726;--muted:#5a6280;
+    --line:#d7deee;--accent:#0c8f86;--accent-soft:#0c8f8615;--warn:#b5710a;--warn-soft:#b5710a12;
+    --good:#1f8a4c;--good-soft:#1f8a4c12;--bad:#c0392b;--bad-soft:#c0392b12;--code-bg:#0c1222;}
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.62;
+       -webkit-font-smoothing:antialiased}
+  .wrap{max-width:1020px;margin:0 auto;padding:0 22px}
+  a{color:var(--accent)}
+  /* topbar */
+  .topbar{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 88%,transparent);
+          backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+  .topbar .wrap{display:flex;align-items:center;gap:12px;height:54px}
+  .brand{font-family:var(--mono);font-weight:600;font-size:14px;letter-spacing:-.02em}
+  .brand span{color:var(--accent)}
+  .nav{margin-left:auto;display:flex;gap:16px;font-size:12.5px}
+  .nav a{color:var(--muted);text-decoration:none}.nav a:hover{color:var(--ink)}
+  .toggle{background:var(--panel2);border:1px solid var(--line);color:var(--muted);border-radius:8px;
+          padding:5px 10px;font-size:12px;cursor:pointer;font-family:var(--mono)}
+  @media(max-width:820px){.nav{display:none}}
+  /* hero */
+  .hero{padding:58px 0 30px}
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
+  h1{font-size:clamp(30px,5vw,46px);line-height:1.08;letter-spacing:-.03em;margin:.35em 0 .3em;
+     font-weight:700;text-wrap:balance}
+  .lede{font-size:18px;color:var(--muted);max-width:66ch}
+  /* sections */
+  section{padding:36px 0;border-top:1px solid var(--line)}
+  .kicker{font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+  h2{font-size:27px;letter-spacing:-.02em;margin:.25em 0 .15em;font-weight:700;text-wrap:balance}
+  h3{font-size:17px;margin:1.5em 0 .35em;letter-spacing:-.01em}
+  p{max-width:72ch}
+  .muted{color:var(--muted)}
+  .why{border-left:3px solid var(--accent);background:var(--accent-soft);padding:12px 16px;
+       border-radius:0 8px 8px 0;margin:14px 0;font-size:15px}
+  .why b{color:var(--accent)}
+  .inline{font-family:var(--mono);font-size:12.5px;background:var(--panel2);padding:1px 6px;border-radius:5px}
+  /* loop diagram */
+  .loop{display:flex;align-items:center;justify-content:center;gap:0;flex-wrap:wrap;margin:18px 0}
+  .lnode{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--accent);
+         border-radius:10px;padding:11px 15px;min-width:150px}
+  .lnode .k{font-family:var(--mono);font-size:13px;font-weight:600}
+  .lnode .d{font-size:12px;color:var(--muted)}
+  .lar{font-family:var(--mono);color:var(--accent);padding:0 10px;font-size:16px}
+  .loopback{text-align:center;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:4px}
+  /* stack layers */
+  .stack{display:flex;flex-direction:column;gap:7px;margin-top:12px}
+  .layer{display:grid;grid-template-columns:150px 1fr;gap:14px;align-items:center;background:var(--panel);
+         border:1px solid var(--line);border-radius:10px;padding:12px 15px}
+  .layer .n{font-family:var(--mono);font-size:12.5px;font-weight:600;color:var(--accent)}
+  .layer .d{font-size:13.5px;color:var(--muted)}
+  .layer .d b{color:var(--ink);font-weight:600}
+  @media(max-width:640px){.layer{grid-template-columns:1fr;gap:3px}}
+  /* cards grid */
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;margin-top:12px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:14px 16px}
+  .card h4{margin:0 0 3px;font-size:14.5px;font-family:var(--mono);color:var(--accent)}
+  .card .u{font-size:11.5px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;
+           letter-spacing:.07em;margin-bottom:6px}
+  .card p{font-size:13.5px;color:var(--muted);margin:0}
+  .card p b{color:var(--ink)}
+  /* tables */
+  .tblwrap{overflow-x:auto;border:1px solid var(--line);border-radius:11px;margin-top:12px}
+  table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:560px}
+  th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);
+     background:var(--panel2)}
+  tr:last-child td{border-bottom:0}
+  td code{font-family:var(--mono);font-size:12.5px;background:var(--panel2);padding:1px 6px;border-radius:5px}
+  /* skills tiers */
+  .tier{border:1px solid var(--line);border-radius:12px;background:var(--panel);margin-top:12px;overflow:hidden}
+  .tier .hd{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line);
+            background:var(--panel2)}
+  .tier .hd .lv{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+                border:1px solid var(--line);border-radius:20px;padding:3px 10px;color:var(--accent)}
+  .tier .hd .t{font-weight:700;font-size:15px}
+  .tier .hd .goal{margin-left:auto;font-size:12.5px;color:var(--muted);font-family:var(--mono)}
+  .tier ul{margin:0;padding:12px 16px 14px 34px;columns:2;column-gap:26px;font-size:13.5px}
+  .tier li{margin:4px 0;break-inside:avoid}
+  @media(max-width:680px){.tier ul{columns:1}.tier .hd .goal{display:none}}
+  /* failure modes */
+  .fail{border:1px solid var(--line);border-left:3px solid var(--bad);background:var(--bad-soft);
+        border-radius:8px;padding:11px 15px;margin-top:9px}
+  .fail .h{font-family:var(--mono);font-size:13px;font-weight:600}
+  .fail .f{font-size:13.5px;color:var(--muted);margin-top:2px}
+  .fail .f b{color:var(--good)}
+  /* checklist */
+  .check{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+  .ck{display:grid;grid-template-columns:22px 1fr;gap:11px;align-items:start;background:var(--panel);
+      border:1px solid var(--line);border-radius:9px;padding:11px 14px}
+  .ck::before{content:"✓";font-family:var(--mono);color:var(--good);font-weight:700;font-size:14px}
+  .ck .t{font-weight:600;font-size:14px}
+  .ck .x{font-size:13px;color:var(--muted)}
+  pre{background:var(--code-bg);color:var(--code-ink);border-radius:10px;padding:14px 16px;overflow-x:auto;
+      font-family:var(--mono);font-size:12.5px;line-height:1.55;border:1px solid var(--line)}
+  pre .c{color:#7c88a8}
+  footer{padding:34px 0 60px;border-top:1px solid var(--line);color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+<div class="topbar"><div class="wrap">
+  <span class="brand"><span>◆</span> agentic-ai</span>
+  <nav class="nav">
+    <a href="#what">Definition</a><a href="#loop">The loop</a><a href="#stack">Stack</a>
+    <a href="#patterns">Patterns</a><a href="#tech">Tech</a><a href="#blueprint">Blueprint</a>
+    <a href="#skills">Skillset</a><a href="#fail">Failures</a><a href="#prod">Production</a>
+  </nav>
+  <button class="toggle" id="themeBtn">◐ theme</button>
+</div></div>
+
+<header class="hero"><div class="wrap">
+  <div class="eyebrow">Deep dive · what to learn and why</div>
+  <h1>Agentic AI: the anatomy, the stack, and the skills that actually matter.</h1>
+  <p class="lede">An agent is not a chatbot. It's a loop where a model is allowed to <em>act</em> — to call
+  tools, observe results, and decide what to do next. Everything below follows from that one idea.</p>
+</div></header>
+
+<main class="wrap">
+
+<!-- ========== WHAT ========== -->
+<section id="what">
+  <div class="kicker">The definition</div>
+  <h2>What makes something "agentic"</h2>
+  <p>The word gets abused. Use this ladder — each rung adds one capability, and only the last two are
+  genuinely agentic:</p>
+  <div class="tblwrap"><table>
+    <thead><tr><th>Level</th><th>What it does</th><th>Who decides the control flow</th></tr></thead>
+    <tbody>
+      <tr><td><b>LLM call</b></td><td>Text in → text out</td><td>Nobody — it's one shot</td></tr>
+      <tr><td><b>Chain</b></td><td>Fixed sequence of calls (summarize → translate)</td><td><b>You</b>, in code</td></tr>
+      <tr><td><b>RAG</b></td><td>Retrieve documents, then answer with them</td><td><b>You</b> — retrieval always runs</td></tr>
+      <tr><td><b>Router</b></td><td>Model picks one of N predefined branches</td><td>Model, but only once</td></tr>
+      <tr><td><b>🟢 Tool-calling agent</b></td><td>Model chooses tools, sees results, loops until done</td><td><b>The model</b>, every step</td></tr>
+      <tr><td><b>🟢 Multi-agent system</b></td><td>Agents delegate to other agents</td><td>The models, recursively</td></tr>
+    </tbody>
+  </table></div>
+  <div class="why"><b>The dividing line:</b> in a chain <em>you</em> wrote the control flow. In an agent, the
+  <em>model</em> decides what happens next, at runtime, based on what it observes. That's the entire
+  difference — and it's why agents are powerful <em>and</em> hard to make reliable.</div>
+</section>
+
+<!-- ========== LOOP ========== -->
+<section id="loop">
+  <div class="kicker">The engine</div>
+  <h2>The agent loop</h2>
+  <p>Strip away every framework and this is what remains. Every agent — ReAct, CrewAI, Claude Code — is
+  some variation of this while-loop:</p>
+  <div class="loop">
+    <div class="lnode"><div class="k">1 · Think</div><div class="d">model reads state, picks an action</div></div>
+    <span class="lar">→</span>
+    <div class="lnode"><div class="k">2 · Act</div><div class="d">emit a tool call w/ arguments</div></div>
+    <span class="lar">→</span>
+    <div class="lnode"><div class="k">3 · Observe</div><div class="d">tool runs, result appended</div></div>
+  </div>
+  <div class="loopback">↑ ── repeat until the model emits a final answer (or a limit trips) ──┘</div>
+  <pre><span class="c"># The whole of "agentic AI", in 8 lines.</span>
+messages = [system_prompt, user_message]
+while True:
+    reply = llm(messages, tools=tool_schemas)   <span class="c"># 1. THINK</span>
+    if not reply.tool_calls:                    <span class="c">#    done?</span>
+        return reply.content
+    for call in reply.tool_calls:               <span class="c"># 2. ACT</span>
+        result = TOOLS[call.name](**call.args)
+        messages.append(tool_result(result))    <span class="c"># 3. OBSERVE</span></pre>
+  <p class="muted">Frameworks add state, persistence, retries, streaming and branching around this loop —
+  but if you can write the 8 lines above, you understand agents.</p>
+  <div class="why"><b>Why a loop beats one big prompt:</b> the model doesn't have to be right first try. It
+  can look things up, run code, check the result, and self-correct. Capability comes from
+  <em>iteration + feedback</em>, not from a better prompt.</div>
+</section>
+
+<!-- ========== STACK ========== -->
+<section id="stack">
+  <div class="kicker">The layers you must know</div>
+  <h2>The agentic stack</h2>
+  <p>Seven layers. You don't need mastery of all seven on day one, but you must know which layer a problem
+  lives in — that's what separates people who debug agents from people who reroll the prompt.</p>
+  <div class="stack">
+    <div class="layer"><div class="n">7 · Interface</div><div class="d"><b>How humans engage.</b> Chat UI, API, IDE, Slack. Streaming, approvals, showing tool calls so users can trust the output.</div></div>
+    <div class="layer"><div class="n">6 · Evaluation</div><div class="d"><b>Is it actually working?</b> Traces, LLM-as-judge, regression evals, golden sets. Without this you're flying blind — the #1 gap in real projects.</div></div>
+    <div class="layer"><div class="n">5 · Guardrails</div><div class="d"><b>Keeping it safe.</b> Prompt-injection defense, sandboxing, least-privilege creds, output validation, human-in-the-loop for destructive actions.</div></div>
+    <div class="layer"><div class="n">4 · Orchestration</div><div class="d"><b>Control flow &amp; state.</b> The loop, graphs, branching, retries, checkpointing, multi-agent handoffs. LangGraph lives here.</div></div>
+    <div class="layer"><div class="n">3 · Context</div><div class="d"><b>What the model sees.</b> Prompts, memory, RAG retrieval, context-window budgeting, compaction, caching. Most "bad agent" bugs are actually context bugs.</div></div>
+    <div class="layer"><div class="n">2 · Tools</div><div class="d"><b>How it acts on the world.</b> Function calling, tool schemas, MCP servers, code execution, API wrappers. Tool <em>descriptions</em> are prompt engineering.</div></div>
+    <div class="layer"><div class="n">1 · Model</div><div class="d"><b>The reasoning engine.</b> Claude / GPT / Nova / Gemini; hosted (Bedrock, Vertex) or local. Tool-calling ability and context size are what matter for agents.</div></div>
+  </div>
+</section>
+
+<!-- ========== PATTERNS ========== -->
+<section id="patterns">
+  <div class="kicker">Architectures</div>
+  <h2>The patterns worth knowing</h2>
+  <p>Reach for the simplest one that works. Complexity in agents costs you latency, money, and reliability —
+  in that order.</p>
+  <div class="grid">
+    <div class="card"><div class="u">the default</div><h4>ReAct</h4>
+      <p><b>Reason + Act in one loop.</b> Model interleaves thoughts and tool calls until done. 90% of agents should be this. <i>Used in this repo's aws-mcp-agent.</i></p></div>
+    <div class="card"><div class="u">for long tasks</div><h4>Plan &amp; Execute</h4>
+      <p><b>Make a plan first, then run the steps.</b> Cheaper (plan once with a big model, execute with a small one) and easier to inspect. Weak when the plan must change mid-flight.</p></div>
+    <div class="card"><div class="u">for quality</div><h4>Reflection</h4>
+      <p><b>Generate → critique → revise.</b> A second pass (often a separate "critic" prompt) catches errors. Big quality win on writing/code; costs 2–3× tokens.</p></div>
+    <div class="card"><div class="u">for breadth</div><h4>Orchestrator–Worker</h4>
+      <p><b>A lead agent fans out subtasks</b> to workers in parallel, then synthesizes. Great for research/audits. Watch cost — it multiplies fast.</p></div>
+    <div class="card"><div class="u">for efficiency</div><h4>Router</h4>
+      <p><b>Classify, then dispatch</b> to a specialist chain/model. Not fully agentic, but the cheapest way to handle mixed traffic. Send easy queries to a small model.</p></div>
+    <div class="card"><div class="u">for autonomy</div><h4>Evaluator–Optimizer</h4>
+      <p><b>Loop until a checker passes.</b> Generate → test → fix. Works brilliantly when you have a <em>hard signal</em> (tests pass, code compiles, schema validates).</p></div>
+  </div>
+  <div class="why"><b>The single most useful heuristic:</b> if a deterministic <code>if/else</code> can do it, don't
+  use an agent. Agents are for when the path can't be known in advance.</div>
+</section>
+
+<!-- ========== TECH ========== -->
+<section id="tech">
+  <div class="kicker">The landscape</div>
+  <h2>Technologies to know</h2>
+
+  <h3>Orchestration frameworks</h3>
+  <div class="tblwrap"><table>
+    <thead><tr><th>Tool</th><th>What it's for</th><th>When to pick it</th></tr></thead>
+    <tbody>
+      <tr><td><b>LangGraph</b></td><td>Agents as stateful graphs; checkpointing, human-in-loop, streaming</td><td>Production agents with real control flow. <b>The one to learn.</b></td></tr>
+      <tr><td><b>LangChain</b></td><td>Model/tool/retriever abstractions</td><td>Glue &amp; integrations; often used <em>under</em> LangGraph</td></tr>
+      <tr><td><b>Claude Agent SDK</b></td><td>Build agents on Claude with tools, sandboxing, subagents</td><td>Coding agents; Anthropic-native workflows</td></tr>
+      <tr><td><b>LlamaIndex</b></td><td>Data/RAG-centric pipelines &amp; agents</td><td>When retrieval over your corpus is the core problem</td></tr>
+      <tr><td><b>CrewAI / AutoGen</b></td><td>Multi-agent role-play &amp; conversation</td><td>Prototyping multi-agent ideas; less production control</td></tr>
+      <tr><td><b>Pydantic AI</b></td><td>Type-safe agents, structured outputs</td><td>You want schemas + validation to be first-class</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Tools &amp; interoperability</h3>
+  <div class="tblwrap"><table>
+    <thead><tr><th>Tech</th><th>What it actually is</th><th>Why it matters</th></tr></thead>
+    <tbody>
+      <tr><td><b>Function / tool calling</b></td><td>The model returns a structured JSON call instead of prose</td><td>The primitive <em>all</em> agents are built on. Non-negotiable to understand.</td></tr>
+      <tr><td><b>MCP</b> (Model Context Protocol)</td><td>An open protocol between agents and tool servers (JSON-RPC over stdio/HTTP)</td><td>Write a tool once → any MCP client uses it. Plug into prebuilt servers (GitHub, DBs, filesystems) without writing integrations.</td></tr>
+      <tr><td><b>Code execution</b></td><td>Let the agent write &amp; run code in a sandbox</td><td>The most general tool there is — often beats 20 bespoke tools.</td></tr>
+      <tr><td><b>Structured output</b></td><td>Force responses into a JSON schema</td><td>Makes LLM output <em>programmable</em>; kills a whole class of parsing bugs.</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Context &amp; memory (RAG and beyond)</h3>
+  <div class="tblwrap"><table>
+    <thead><tr><th>Concept</th><th>What to know</th></tr></thead>
+    <tbody>
+      <tr><td><b>Embeddings</b></td><td>Text → vector. Semantic similarity = cosine distance. The basis of retrieval.</td></tr>
+      <tr><td><b>Vector stores</b></td><td>pgvector, Chroma, FAISS, Pinecone, Snowflake Cortex Search. Store + ANN-search vectors.</td></tr>
+      <tr><td><b>Chunking</b></td><td>How you split docs decides retrieval quality more than the model does. Respect semantic boundaries.</td></tr>
+      <tr><td><b>Hybrid search + rerank</b></td><td>BM25 (keyword) + vectors, then a cross-encoder reranker. Beats pure vector search almost always.</td></tr>
+      <tr><td><b>Memory</b></td><td><b>Short-term</b> = the message list. <b>Long-term</b> = summarized facts in a store, retrieved per turn.</td></tr>
+      <tr><td><b>Context engineering</b></td><td>Budgeting the window: compaction, summarization, prompt caching. As important as prompt engineering now.</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Ops: observability &amp; evaluation</h3>
+  <div class="tblwrap"><table>
+    <thead><tr><th>Need</th><th>Tools</th><th>Why</th></tr></thead>
+    <tbody>
+      <tr><td>Tracing</td><td>LangSmith, Langfuse, OpenTelemetry, Arize</td><td>See every step, tool call, token &amp; cost. You cannot debug an agent from logs alone.</td></tr>
+      <tr><td>Evaluation</td><td>LLM-as-judge, golden datasets, task success rate</td><td>Prove a prompt change didn't silently break 20% of cases.</td></tr>
+      <tr><td>Gateways</td><td>LiteLLM, Bedrock, OpenRouter</td><td>Swap models, control cost, add retries/rate-limits in one place.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ========== BLUEPRINT ========== -->
+<section id="blueprint">
+  <div class="kicker">Putting it all together</div>
+  <h2>Blueprint: a production agentic system</h2>
+  <p>Rough code — not copy-paste-runnable, but every piece a real system needs, and <em>why</em> it's there.
+  This is the shape: a LiteLLM gateway for models, MCP for tools, LangGraph for control flow, LangSmith for
+  traces, guardrails for safety, evals as a CI gate.</p>
+
+  <h3>Project structure</h3>
+  <pre>agent/
+├── config.py           <span class="c"># settings, model tiers, budgets</span>
+├── llm.py              <span class="c"># LiteLLM gateway: routing, fallback, cost</span>
+├── observability.py    <span class="c"># LangSmith / OTel tracing</span>
+├── guardrails.py       <span class="c"># limits, injection defense, approval gates</span>
+├── state.py            <span class="c"># LangGraph state schema</span>
+├── tools/
+│   ├── mcp_client.py   <span class="c"># connects to N MCP servers</span>
+│   ├── math_server.py  <span class="c"># local MCP server  (stdio)</span>
+│   └── db_server.py    <span class="c"># remote MCP server (HTTP)</span>
+├── rag/
+│   ├── ingest.py       <span class="c"># chunk → embed → index</span>
+│   └── retrieve.py     <span class="c"># hybrid search + rerank</span>
+├── graph.py            <span class="c"># the agent: router → RAG → ReAct → reflect → HITL</span>
+├── api.py              <span class="c"># FastAPI: /chat (SSE streaming), /health</span>
+├── evals/
+│   ├── golden.jsonl    <span class="c"># test cases</span>
+│   └── run_evals.py    <span class="c"># LLM-judge + CI gate</span>
+├── Dockerfile
+└── deploy.py           <span class="c"># ECR + ECS Fargate + IAM roles</span></pre>
+
+  <h3>1 · config.py — model tiering &amp; budgets</h3>
+  <p class="muted">Never hardcode a model. Tier them: a cheap one to classify, a strong one to reason, a
+  sharp one to judge. Budgets live here so every layer can enforce them.</p>
+  <pre>from pydantic_settings import BaseSettings
+
+class Settings(BaseSettings):
+    ROUTER_MODEL: str = "gpt-4o-mini"       <span class="c"># classify — cheap &amp; fast</span>
+    WORKER_MODEL: str = "claude-sonnet-5"   <span class="c"># main reasoning</span>
+    JUDGE_MODEL:  str = "claude-opus-4-8"   <span class="c"># critique / eval</span>
+
+    LITELLM_BASE_URL: str = "http://litellm:4000/v1"
+    LANGSMITH_PROJECT: str = "prod-agent"
+
+    MAX_ITERATIONS: int = 12                <span class="c"># loop cap  — stops runaway agents</span>
+    MAX_USD_PER_REQUEST: float = 0.50       <span class="c"># cost cap — stops bill shock</span>
+
+settings = Settings()   <span class="c"># from env / secrets manager, never from code</span></pre>
+
+  <h3>2 · llm.py + LiteLLM — one door to every model</h3>
+  <p class="muted"><b>Why a gateway:</b> one place for model routing, fallbacks, retries, rate limits, caching,
+  cost tracking and key management. Swap Claude→GPT without touching agent code.</p>
+  <pre><span class="c"># llm.py — LiteLLM speaks the OpenAI protocol, so any client works</span>
+from langchain_openai import ChatOpenAI
+from config import settings
+
+def get_llm(tier: str = "worker"):
+    model = {"router": settings.ROUTER_MODEL,
+             "worker": settings.WORKER_MODEL,
+             "judge":  settings.JUDGE_MODEL}[tier]
+    return ChatOpenAI(model=model,
+                      base_url=settings.LITELLM_BASE_URL,
+                      api_key=settings.LITELLM_KEY,
+                      max_retries=3, timeout=60)</pre>
+  <pre><span class="c"># litellm/config.yaml — the gateway itself</span>
+model_list:
+  - model_name: claude-sonnet-5
+    litellm_params:
+      model: bedrock/eu.anthropic.claude-sonnet-5   <span class="c"># via Bedrock (IAM role!)</span>
+      aws_region_name: eu-north-1
+  - model_name: gpt-4o-mini
+    litellm_params: { model: openai/gpt-4o-mini }
+
+router_settings:
+  fallbacks: [{ claude-sonnet-5: [gpt-4o-mini] }]   <span class="c"># provider outage? fail over</span>
+  num_retries: 3
+litellm_settings:
+  success_callback: ["langsmith"]                   <span class="c"># auto-ship traces</span>
+  cache: true                                       <span class="c"># dedupe identical calls</span>
+  max_budget: 100                                   <span class="c"># $/month HARD stop</span></pre>
+
+  <h3>3 · observability.py — you cannot debug what you cannot see</h3>
+  <p class="muted">Tracing is not optional. A trace shows every node, tool call, token, and dollar as a tree.
+  Logs will not save you here.</p>
+  <pre>import os
+from langsmith import traceable
+
+os.environ["LANGSMITH_TRACING"] = "true"
+os.environ["LANGSMITH_PROJECT"] = settings.LANGSMITH_PROJECT
+<span class="c"># LangGraph + LangChain auto-trace every node and tool call.</span>
+
+@traceable(run_type="retriever", name="hybrid_retrieve")   <span class="c"># trace custom fns too</span>
+def retrieve(query): ...
+
+<span class="c"># In the LangSmith UI you now see: route → retrieve → agent → tool → agent</span>
+<span class="c"># with latency, tokens and $ on every span. This is how you find the bug.</span></pre>
+
+  <h3>4 · state.py — what flows through the graph</h3>
+  <p class="muted">The state schema <em>is</em> your agent's memory and its safety rails. Guard counters live
+  here so every node can check them.</p>
+  <pre>from typing import Annotated, Literal, TypedDict
+from langgraph.graph.message import add_messages
+
+class AgentState(TypedDict):
+    messages: Annotated[list, add_messages]  <span class="c"># reducer: append, don't overwrite</span>
+    route: Literal["simple", "research", "code"]
+    docs: list[dict]        <span class="c"># retrieved context (RAG)</span>
+    iterations: int         <span class="c"># loop guard</span>
+    cost_usd: float         <span class="c"># budget guard</span></pre>
+
+  <h3>5 · tools/mcp_client.py — MCP: write once, use anywhere</h3>
+  <p class="muted">This is where MCP finally earns its keep: <b>local</b>, <b>remote</b>, and <b>third-party</b>
+  tool servers all behind one interface. The GitHub server below is one you never wrote.</p>
+  <pre>from langchain_mcp_adapters.client import MultiServerMCPClient
+
+client = MultiServerMCPClient({
+    "math":   {"command": "python", "args": ["tools/math_server.py"],
+               "transport": "stdio"},                  <span class="c"># local subprocess</span>
+    "db":     {"url": "http://db-mcp:9000/mcp",
+               "transport": "streamable_http"},        <span class="c"># your own service</span>
+    "github": {"url": "https://mcp.github.com/mcp",
+               "transport": "streamable_http"},        <span class="c"># 3rd-party: zero code</span>
+})
+TOOLS = await client.get_tools()   <span class="c"># discovered at startup, schemas included</span></pre>
+  <pre><span class="c"># tools/math_server.py — a server is just decorated functions</span>
+from fastmcp import FastMCP
+mcp = FastMCP("math")
+
+@mcp.tool
+def calculate(expression: str) -&gt; str:
+    """Evaluate an arithmetic expression. Use this instead of doing
+    mental math — you are unreliable at arithmetic."""   <span class="c"># ← docstring IS a prompt</span>
+    return str(safe_eval(expression))
+
+if __name__ == "__main__":
+    mcp.run(transport="stdio")</pre>
+
+  <h3>6 · guardrails.py — the difference between a demo and a system</h3>
+  <pre>class LoopLimit(Exception): ...
+class BudgetExceeded(Exception): ...
+
+def check_limits(state):
+    if state["iterations"] &gt;= settings.MAX_ITERATIONS: raise LoopLimit()
+    if state["cost_usd"]  &gt;= settings.MAX_USD_PER_REQUEST: raise BudgetExceeded()
+
+def wrap_tool_output(text: str) -&gt; str:
+    <span class="c"># Tool output is DATA, never instructions. This is prompt-injection defense:</span>
+    <span class="c"># a fetched webpage saying "ignore previous instructions" must not be obeyed.</span>
+    return f"&lt;untrusted_data&gt;\n{text[:4000]}\n&lt;/untrusted_data&gt;"
+
+DESTRUCTIVE = {"delete_record", "send_email", "charge_card", "deploy"}
+def needs_human(tool_calls) -&gt; bool:
+    return any(t["name"] in DESTRUCTIVE for t in tool_calls)</pre>
+
+  <h3>7 · rag/retrieve.py — retrieval that actually works</h3>
+  <p class="muted">Pure vector search underperforms. Hybrid + rerank is the production default.</p>
+  <pre>@traceable(run_type="retriever")
+def retrieve(query: str, k: int = 20):
+    dense  = vector_store.similarity_search(query, k=k)  <span class="c"># semantic</span>
+    sparse = bm25.search(query, k=k)                     <span class="c"># keyword (exact IDs, names)</span>
+    fused  = reciprocal_rank_fusion(dense, sparse)       <span class="c"># hybrid</span>
+    return cross_encoder.rerank(query, fused)[:5]        <span class="c"># precision: top 5 only</span></pre>
+
+  <h3>8 · graph.py — the agent, with every pattern in one place</h3>
+  <p class="muted">Router (cheap triage) → RAG (context) → ReAct (the loop) → Reflection (quality) →
+  Human-in-the-loop (safety), with a checkpointer for durability.</p>
+  <pre>from langgraph.graph import StateGraph, START, END
+from langgraph.prebuilt import ToolNode
+from langgraph.checkpoint.postgres import PostgresSaver
+
+<span class="c"># ---------- NODES ----------</span>
+def route(state):                       <span class="c"># PATTERN: Router — cheap model triages</span>
+    r = get_llm("router").invoke(f"Classify: {state['messages'][-1].content}")
+    return {"route": r.content.strip()}
+
+def retrieve_node(state):               <span class="c"># PATTERN: RAG</span>
+    return {"docs": retrieve(state["messages"][-1].content)}
+
+def agent(state):                       <span class="c"># PATTERN: ReAct — the core loop</span>
+    check_limits(state)                 <span class="c"># guardrail on every iteration</span>
+    llm = get_llm("worker").bind_tools(TOOLS)
+    reply = llm.invoke(build_prompt(state))       <span class="c"># state.docs go in the prompt</span>
+    return {"messages": [reply], "iterations": state["iterations"] + 1}
+
+def reflect(state):                     <span class="c"># PATTERN: Reflection — critique &amp; fix</span>
+    fixed = get_llm("judge").invoke(f"Critique and improve:\n{state['messages'][-1].content}")
+    return {"messages": [fixed]}
+
+def human_gate(state):                  <span class="c"># PATTERN: HITL — pauses here (interrupt)</span>
+    return state
+
+def should_continue(state):             <span class="c"># the router of the loop</span>
+    last = state["messages"][-1]
+    if not last.tool_calls:          return "reflect"   <span class="c"># no tools → done</span>
+    if needs_human(last.tool_calls): return "human"     <span class="c"># destructive → approve</span>
+    return "tools"                                      <span class="c"># else → act</span>
+
+<span class="c"># ---------- WIRING ----------</span>
+g = StateGraph(AgentState)
+for name, fn in [("route",route), ("retrieve",retrieve_node), ("agent",agent),
+                 ("reflect",reflect), ("human",human_gate)]:
+    g.add_node(name, fn)
+g.add_node("tools", ToolNode(TOOLS))
+
+g.add_edge(START, "route")
+g.add_conditional_edges("route", lambda s: s["route"],
+    {"simple": "agent", "research": "retrieve", "code": "agent"})
+g.add_edge("retrieve", "agent")
+g.add_conditional_edges("agent", should_continue,
+    {"tools": "tools", "reflect": "reflect", "human": "human"})
+g.add_edge("tools", "agent")     <span class="c">#  ←── THE LOOP: act, observe, think again</span>
+g.add_edge("human", "tools")     <span class="c">#  resumes here once approved</span>
+g.add_edge("reflect", END)
+
+graph = g.compile(
+    checkpointer=PostgresSaver(conn),  <span class="c"># durability: survive a crash, resume a thread</span>
+    interrupt_before=["human"],        <span class="c"># HARD STOP before destructive actions</span>
+)</pre>
+
+  <h3>9 · api.py — serve it, stream it, resume it</h3>
+  <pre>@app.post("/chat")
+async def chat(req: ChatReq):
+    <span class="c"># thread_id = the conversation's memory key (checkpointer loads history)</span>
+    cfg = {"configurable": {"thread_id": req.session_id}}
+
+    async def events():                       <span class="c"># stream so users see it working</span>
+        async for chunk in graph.astream(
+            {"messages": [("user", req.message)], "iterations": 0, "cost_usd": 0.0},
+            cfg, stream_mode="updates"):
+            yield f"data: {json.dumps(chunk, default=str)}\n\n"
+
+    return StreamingResponse(events(), media_type="text/event-stream")
+
+@app.post("/approve/{session_id}")            <span class="c"># human-in-the-loop resume</span>
+async def approve(session_id: str):
+    <span class="c"># passing None resumes the paused graph from its checkpoint</span>
+    graph.invoke(None, {"configurable": {"thread_id": session_id}})</pre>
+
+  <h3>10 · evals/run_evals.py — the CI gate that makes it engineering</h3>
+  <p class="muted">This is the step almost everyone skips, and it's the one that separates a demo from a
+  product. A prompt change must not be allowed to silently break 20% of cases.</p>
+  <pre>from langsmith import evaluate
+
+def correctness(run, example):                <span class="c"># LLM-as-judge</span>
+    v = get_llm("judge").invoke(
+        f"Question: {example.inputs['q']}\n"
+        f"Expected: {example.outputs['a']}\n"
+        f"Actual:   {run.outputs['answer']}\n"
+        f"Is the actual answer correct? Reply yes or no.")
+    return {"key": "correct", "score": "yes" in v.content.lower()}
+
+results = evaluate(run_agent,
+                   data="golden-set",                     <span class="c"># your 50–200 real cases</span>
+                   evaluators=[correctness, latency, cost])
+
+<span class="c"># THE GATE — fail the build on regression. Run this in CI on every PR.</span>
+assert results["correct"] &gt;= 0.90, "quality regression — deploy blocked"
+assert results["p95_latency"] &lt; 8.0
+assert results["avg_cost"] &lt; 0.05</pre>
+
+  <h3>11 · Ship it</h3>
+  <p class="muted">Containerize, push, run on Fargate/K8s with a <b>scoped role</b> — never keys in the image.
+  (The mechanics are in this repo's <span class="inline">aws-mcp-agent/architecture.html</span>.)</p>
+  <pre><span class="c"># docker-compose (dev) — the agent + its gateway + its tool server</span>
+services:
+  agent:   { build: ., ports: ["8000:8000"], env_file: .env }
+  litellm: { image: ghcr.io/berriai/litellm, ports: ["4000:4000"] }
+  db-mcp:  { build: ./tools, ports: ["9000:9000"] }
+  postgres:{ image: postgres:16 }        <span class="c"># checkpointer store</span>
+
+<span class="c"># prod: same image → ECR → ECS Fargate task with an IAM task role</span>
+<span class="c">#       (bedrock:InvokeModel only) — zero credentials in the container.</span></pre>
+
+  <div class="why"><b>What makes this "production" and not a demo:</b> a gateway so models are swappable and
+  capped; tracing so failures are visible; guardrails so it can't loop, overspend, or be injected; a human
+  gate on destructive actions; checkpointing so it survives a crash; and an eval suite that <em>blocks the
+  deploy</em> when quality drops. The agent logic is maybe 15% of the code — the other 85% is what keeps it
+  alive.</div>
+</section>
+
+<!-- ========== SKILLS ========== -->
+<section id="skills">
+  <div class="kicker">What to actually learn</div>
+  <h2>The skillset roadmap</h2>
+
+  <div class="tier">
+    <div class="hd"><span class="lv">Tier 1</span><span class="t">Foundations</span>
+      <span class="goal">goal: build a working tool-calling agent</span></div>
+    <ul>
+      <li><b>Python</b> — async/await, typing, pydantic</li>
+      <li><b>The LLM API</b> — messages, system prompts, temperature, tokens</li>
+      <li><b>Tool/function calling</b> — schemas, arguments, results</li>
+      <li><b>The agent loop</b> — write it by hand once, no framework</li>
+      <li><b>Prompt engineering</b> — system prompts, tool descriptions</li>
+      <li><b>Structured output</b> — JSON schema, validation</li>
+      <li><b>Basic RAG</b> — embed, store, retrieve, stuff into context</li>
+      <li><b>Git + REST</b> — non-negotiable baseline</li>
+    </ul>
+  </div>
+
+  <div class="tier">
+    <div class="hd"><span class="lv">Tier 2</span><span class="t">Building real systems</span>
+      <span class="goal">goal: ship an agent someone else uses</span></div>
+    <ul>
+      <li><b>LangGraph</b> — state, nodes, edges, checkpoints</li>
+      <li><b>MCP</b> — servers, transports, connecting clients</li>
+      <li><b>Advanced RAG</b> — hybrid search, reranking, chunking strategy</li>
+      <li><b>Memory design</b> — short vs long-term, summarization</li>
+      <li><b>Context engineering</b> — window budgets, compaction, caching</li>
+      <li><b>Tracing</b> — LangSmith/Langfuse; read a trace fluently</li>
+      <li><b>Evals</b> — build a golden set; LLM-as-judge</li>
+      <li><b>FastAPI</b> — serve it; streaming responses (SSE)</li>
+      <li><b>Docker</b> — containerize the thing</li>
+      <li><b>Cost &amp; latency</b> — model tiering, caching, token math</li>
+    </ul>
+  </div>
+
+  <div class="tier">
+    <div class="hd"><span class="lv">Tier 3</span><span class="t">Production &amp; scale</span>
+      <span class="goal">goal: it survives real users</span></div>
+    <ul>
+      <li><b>Cloud deploy</b> — ECS/Fargate, Lambda, or K8s</li>
+      <li><b>IAM &amp; least privilege</b> — roles over static keys</li>
+      <li><b>Secrets management</b> — never in code or images</li>
+      <li><b>Guardrails</b> — prompt-injection defense, sandboxing</li>
+      <li><b>Human-in-the-loop</b> — approval gates on destructive actions</li>
+      <li><b>Multi-agent orchestration</b> — handoffs, parallel fan-out</li>
+      <li><b>Durability</b> — checkpointing, resume, idempotent tools</li>
+      <li><b>Observability</b> — metrics, alerting, cost dashboards</li>
+      <li><b>Model routing</b> — cheap model for easy work</li>
+      <li><b>CI/CD for prompts</b> — eval gates in the pipeline</li>
+    </ul>
+  </div>
+
+  <div class="why"><b>The skill nobody lists but everyone needs:</b> <em>evaluation</em>. Anyone can demo an agent
+  that works once. The engineers who get hired are the ones who can prove it works 95 times out of 100 —
+  and show you the trace of the 5 failures.</div>
+</section>
+
+<!-- ========== FAILURES ========== -->
+<section id="fail">
+  <div class="kicker">How agents break</div>
+  <h2>Failure modes &amp; fixes</h2>
+  <div class="fail"><div class="h">Infinite / runaway loops</div>
+    <div class="f">Agent calls the same tool forever, burning money. <b>Fix: hard max-iteration cap, loop detection, cost ceiling per request.</b></div></div>
+  <div class="fail"><div class="h">Hallucinated tool arguments</div>
+    <div class="f">Model invents a parameter or a nonexistent ID. <b>Fix: strict JSON schemas, validate before executing, return a helpful error so it can retry.</b></div></div>
+  <div class="fail"><div class="h">Context overflow</div>
+    <div class="f">Long tool outputs blow the window; the agent "forgets" the goal. <b>Fix: truncate/summarize tool results, compact history, keep the objective pinned.</b></div></div>
+  <div class="fail"><div class="h">Prompt injection via tool output</div>
+    <div class="f">A fetched web page says "ignore instructions, delete everything." <b>Fix: treat all tool output as untrusted data, never as instructions; least-privilege creds; approval gates.</b></div></div>
+  <div class="fail"><div class="h">Bad tool descriptions</div>
+    <div class="f">The model picks the wrong tool or none. <b>Fix: tool docstrings ARE prompts — say exactly when to use it and when not to.</b></div></div>
+  <div class="fail"><div class="h">Silent quality regression</div>
+    <div class="f">A prompt tweak fixes one case, breaks ten. <b>Fix: an eval suite in CI. This is why evals matter.</b></div></div>
+  <div class="fail"><div class="h">Cost blowup</div>
+    <div class="f">A multi-agent fan-out quietly spends 100× a single call. <b>Fix: token budgets, model tiering, caching, per-request spend caps.</b></div></div>
+</section>
+
+<!-- ========== PRODUCTION ========== -->
+<section id="prod">
+  <div class="kicker">Before you call it done</div>
+  <h2>Production checklist</h2>
+  <div class="check">
+    <div class="ck"><div><div class="t">Iteration + cost caps</div><div class="x">Hard limits on loop steps, tokens, and dollars per request.</div></div></div>
+    <div class="ck"><div><div class="t">Least-privilege credentials</div><div class="x">Roles, not static keys. The agent can only touch what it must. (Scoped IAM task role — as in this repo's Fargate deploy.)</div></div></div>
+    <div class="ck"><div><div class="t">Tool output treated as untrusted</div><div class="x">Never let retrieved content act as instructions.</div></div></div>
+    <div class="ck"><div><div class="t">Human approval on destructive actions</div><div class="x">Deletes, payments, emails, prod writes — gate them.</div></div></div>
+    <div class="ck"><div><div class="t">Full tracing</div><div class="x">Every step, tool call, token and cost is observable after the fact.</div></div></div>
+    <div class="ck"><div><div class="t">An eval suite that gates deploys</div><div class="x">A golden set + judge running in CI, not vibes.</div></div></div>
+    <div class="ck"><div><div class="t">Graceful failure</div><div class="x">Retries with backoff, timeouts, and a sane answer when a tool dies.</div></div></div>
+    <div class="ck"><div><div class="t">Idempotent tools</div><div class="x">A retried tool call must not double-charge the customer.</div></div></div>
+    <div class="ck"><div><div class="t">Streaming + visible tool calls</div><div class="x">Users trust agents they can watch work.</div></div></div>
+  </div>
+</section>
+
+<!-- ========== PATH ========== -->
+<section id="path">
+  <div class="kicker">How to actually learn it</div>
+  <h2>The fastest path</h2>
+  <p>In order. Each step should produce something that runs.</p>
+  <pre><span class="c">1.</span> Write the agent loop by hand — no framework. Feel the tool-call protocol.
+<span class="c">2.</span> Give it one real tool (calculator, web fetch). Watch it decide to use it.
+<span class="c">3.</span> Rewrite it in LangGraph. Now you know what the framework buys you.
+<span class="c">4.</span> Add RAG over a corpus you care about. Learn why chunking matters.
+<span class="c">5.</span> Expose the tools via an MCP server. Point a second client at it.
+<span class="c">6.</span> Add tracing. Read a trace. Find a bug you couldn't see before.
+<span class="c">7.</span> Write 20 test cases + an LLM judge. Measure. Improve. Re-measure.
+<span class="c">8.</span> Containerize and deploy it with a scoped role, no keys in the image.
+<span class="c">9.</span> Break it on purpose: injection, loops, huge outputs. Then defend it.</pre>
+  <div class="why"><b>You've already done 1–3, 5 and 8</b> in this repo (LangGraph + MCP + Bedrock on ECS
+  Fargate with a task role). The highest-leverage next steps are <b>4, 6 and 7</b>: real RAG, tracing, and
+  an eval suite — that's the jump from "demo" to "engineer."</div>
+</section>
+
+</main>
+
+<footer><div class="wrap">
+  An agent is a loop that can act. Everything else — frameworks, MCP, RAG, evals, IAM — exists to make that
+  loop <em>reliable</em>, <em>safe</em>, and <em>affordable</em>.
+</div></footer>
+
+<script>
+(function(){
+  var root=document.documentElement, btn=document.getElementById('themeBtn');
+  function cur(){return root.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');}
+  btn.addEventListener('click',function(){root.setAttribute('data-theme',cur()==='dark'?'light':'dark');});
+})();
+</script>
+</body>
+</html>

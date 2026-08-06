@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+*.env
+*.png
+draw_architecture.py
+parse_corpus.py
+embed_corpus.py
+data/faraz_en_ghazals/
+data/*.zip
+.git/
+Dockerfile
+.dockerignore

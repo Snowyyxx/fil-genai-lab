@@ -1,0 +1,28 @@
+# LiteLLM gateway → Amazon Bedrock. This is the "AI gateway" the Faraz app calls
+# instead of hitting Bedrock directly. One front door: routing, auth, logging.
+#
+# The gateway process needs AWS creds to reach Bedrock:
+#   - locally / in docker-compose: AWS_ACCESS_KEY_ID / _SECRET_ACCESS_KEY / _DEFAULT_REGION env
+#   - on ECS: the task role (no keys)
+# Note the eu.* inference-profile prefix required for Nova in eu-north-1.
+
+model_list:
+  - model_name: nova-pro                       # what the app asks for
+    litellm_params:
+      model: bedrock/eu.amazon.nova-pro-v1:0
+      aws_region_name: eu-north-1
+  - model_name: nova-lite
+    litellm_params:
+      model: bedrock/eu.amazon.nova-lite-v1:0
+      aws_region_name: eu-north-1
+  - model_name: titan-embed                    # embeddings, also via the gateway
+    litellm_params:
+      model: bedrock/amazon.titan-embed-text-v2:0
+      aws_region_name: eu-north-1
+
+litellm_settings:
+  drop_params: true
+  request_timeout: 120
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY    # clients send it as Bearer token

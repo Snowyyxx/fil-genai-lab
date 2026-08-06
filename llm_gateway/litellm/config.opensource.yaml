@@ -1,0 +1,41 @@
+# LiteLLM endpoint → 3 open-source LLMs (3 distinct families), served by the
+# native Ollama daemon on the host (http://localhost:11434).
+#
+# Run it:
+#   cd llm_gateway
+#   LITELLM_MASTER_KEY=sk-local-dev-key \
+#     .venv/bin/litellm --config litellm/config.opensource.yaml --port 4000
+#
+# Then call it like the OpenAI API:
+#   curl http://localhost:4000/v1/chat/completions \
+#     -H "Authorization: Bearer sk-local-dev-key" -H "Content-Type: application/json" \
+#     -d '{"model":"llama3","messages":[{"role":"user","content":"hi"}]}'
+#
+# `ollama_chat/` (not `ollama/`) applies each model's chat template correctly.
+
+model_list:
+  # ── 1. Meta — Llama 3 ────────────────────────────────────────────────────
+  - model_name: llama3
+    litellm_params:
+      model: ollama_chat/llama3:latest
+      api_base: http://localhost:11434
+
+  # ── 2. Alibaba — Qwen 2.5 ────────────────────────────────────────────────
+  - model_name: qwen2.5
+    litellm_params:
+      model: ollama_chat/qwen2.5:3b-instruct
+      api_base: http://localhost:11434
+
+  # ── 3. Google — Gemma 2 ──────────────────────────────────────────────────
+  - model_name: gemma2
+    litellm_params:
+      model: ollama_chat/gemma2:2b
+      api_base: http://localhost:11434
+
+litellm_settings:
+  drop_params: true      # silently drop params a given model doesn't support
+  request_timeout: 600   # local CPU inference can be slow — be generous
+
+general_settings:
+  # Clients must send:  Authorization: Bearer <LITELLM_MASTER_KEY>
+  master_key: os.environ/LITELLM_MASTER_KEY

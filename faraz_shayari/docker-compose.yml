@@ -1,0 +1,41 @@
+# Two containers: the LiteLLM gateway (→ Bedrock) and the Faraz app (→ gateway).
+#
+#   docker compose up --build
+#   open http://localhost:8000
+#
+# The app talks ONLY to the gateway (http://litellm:4000) over the compose
+# network. Only the GATEWAY holds AWS creds (from ../aws-mcp-agent/.env), so the
+# app container has no AWS keys at all — the gateway is the single Bedrock door.
+
+services:
+  litellm:                                   # ① the AI gateway
+    image: ghcr.io/berriai/litellm:main-latest
+    container_name: faraz_litellm
+    env_file: ../aws-mcp-agent/.env          # AWS_ACCESS_KEY_ID / _SECRET / _DEFAULT_REGION
+    environment:
+      - LITELLM_MASTER_KEY=sk-bedrock-gateway
+    volumes:
+      - ../llm_gateway/litellm/config.bedrock.yaml:/app/config.yaml:ro
+    command: ["--config", "/app/config.yaml", "--host", "0.0.0.0", "--port", "4000"]
+    # not published to the host — internal to the compose network only
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:4000/health/liveliness')\" || exit 1"]
+      interval: 8s
+      timeout: 5s
+      retries: 15
+
+  faraz:                                     # ② the app (no AWS creds)
+    build: .
+    container_name: faraz_app
+    depends_on:
+      litellm:
+        condition: service_healthy
+    environment:
+      - LITELLM_BASE_URL=http://litellm:4000/v1
+      - LITELLM_API_KEY=sk-bedrock-gateway
+      - GEN_MODEL=nova-pro
+      - EMBED_MODEL=titan-embed
+      # serve the UI from S3 (public HTML). Update the bucket, not the container.
+      - HTML_URL=https://faraz-shayari-web-603011031805.s3.eu-north-1.amazonaws.com/frontend.html
+    ports:
+      - "8000:8000"
