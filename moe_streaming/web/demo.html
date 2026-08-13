@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MoE Streaming — live simulator</title>
+<style>
+  :root{
+    --bg:#eef1f6; --panel:#ffffff; --panel-2:#f5f8fc; --code-bg:#f3f6fb;
+    --ink:#141d27; --muted:#5b6b7b; --line:#d3dce6;
+    --accent:#b9772a; --accent-bright:#c98a2e;
+    --hot:#c98a2e; --cold:#5f7488; --naive:#c05b5b; --good:#1f7a5c;
+    --mono:ui-monospace,"SF Mono","SFMono-Regular",Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --bg:#0b0f15; --panel:#121a24; --panel-2:#0e161f; --code-bg:#0d151d;
+    --ink:#e7edf4; --muted:#93a3b4; --line:#22303f;
+    --accent:#e6a54b; --accent-bright:#f0b45f; --hot:#e6a54b; --cold:#6a8299;
+    --naive:#e0776f; --good:#4fd1a5;
+  }}
+  :root[data-theme="dark"]{
+    --bg:#0b0f15; --panel:#121a24; --panel-2:#0e161f; --code-bg:#0d151d;
+    --ink:#e7edf4; --muted:#93a3b4; --line:#22303f;
+    --accent:#e6a54b; --accent-bright:#f0b45f; --hot:#e6a54b; --cold:#6a8299;
+    --naive:#e0776f; --good:#4fd1a5;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;
+    -webkit-font-smoothing:antialiased}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 20px}
+  a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+
+  header{border-bottom:1px solid var(--line);background:linear-gradient(180deg,var(--panel-2),transparent);
+    padding:22px 0 18px}
+  .head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.2em;text-transform:uppercase;
+    color:var(--accent);margin:0 0 8px}
+  h1{margin:0;font-size:clamp(24px,4vw,34px);letter-spacing:-.02em;font-weight:800}
+  .sub{color:var(--muted);margin:6px 0 0;max-width:60ch}
+  .head .links{font-family:var(--mono);font-size:12.5px;text-align:right}
+  .toggle{font-family:var(--mono);font-size:12px;cursor:pointer;background:var(--panel);
+    border:1px solid var(--line);color:var(--muted);border-radius:8px;padding:6px 10px;margin-left:8px}
+  .toggle:hover{border-color:var(--accent);color:var(--ink)}
+
+  /* controls */
+  .controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:16px 0}
+  .btn{font-family:var(--mono);font-size:13px;cursor:pointer;background:var(--panel);
+    border:1px solid var(--line);color:var(--ink);border-radius:9px;padding:9px 14px}
+  .btn:hover{border-color:var(--accent)}
+  .btn.primary{background:var(--accent);color:var(--bg);border-color:var(--accent);font-weight:700}
+  .btn.primary:hover{filter:brightness(1.06)}
+  .ctl{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:12px;color:var(--muted)}
+  .ctl input[type=range]{accent-color:var(--accent);width:100px}
+  .ctl b{color:var(--ink);min-width:34px;display:inline-block;text-align:right;font-variant-numeric:tabular-nums}
+  .presets{display:flex;gap:6px;flex-wrap:wrap}
+  .chip{font-family:var(--mono);font-size:11.5px;cursor:pointer;background:var(--panel-2);
+    border:1px solid var(--line);color:var(--muted);border-radius:999px;padding:6px 11px}
+  .chip:hover{color:var(--ink);border-color:var(--accent)}
+  .chip.on{background:var(--accent);color:var(--bg);border-color:var(--accent)}
+
+  .narrate{font-family:var(--mono);font-size:13.5px;padding:11px 14px;border:1px solid var(--line);
+    border-left:3px solid var(--accent);border-radius:0 10px 10px 0;background:var(--panel-2);
+    margin:4px 0 18px;min-height:20px}
+  .narrate .step{color:var(--accent);font-weight:700;margin-right:8px}
+
+  /* main grid */
+  .grid{display:grid;grid-template-columns:1.35fr 1fr;gap:20px;align-items:start}
+  @media(max-width:900px){.grid{grid-template-columns:1fr}}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
+  .card h2{margin:0 0 12px;font-size:13px;font-family:var(--mono);letter-spacing:.08em;
+    text-transform:uppercase;color:var(--muted);font-weight:600}
+
+  /* stage */
+  .stage{position:relative;display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:center;
+    min-height:330px}
+  .col{display:flex;flex-direction:column;gap:6px}
+  .col .lab{font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppercase;
+    letter-spacing:.1em;margin-bottom:2px}
+  /* disk */
+  .disk{display:grid;grid-template-columns:repeat(6,1fr);gap:4px}
+  .cell{height:20px;border-radius:3px;background:var(--panel-2);border:1px solid var(--line);
+    transition:background .2s,border-color .2s,box-shadow .2s}
+  .cell.pick{background:var(--accent);border-color:var(--accent);
+    box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 35%,transparent)}
+  .cell.streamed{background:color-mix(in srgb,var(--accent) 30%,var(--panel-2))}
+  .diskmeta{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:6px;text-align:center}
+
+  /* router */
+  .router{width:96px;height:96px;border-radius:14px;border:1.5px solid var(--line);background:var(--panel-2);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;position:relative;
+    transition:border-color .2s,box-shadow .2s}
+  .router.active{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 25%,transparent)}
+  .router .r1{font-family:var(--mono);font-size:12px;font-weight:700}
+  .router .r2{font-family:var(--mono);font-size:10.5px;color:var(--muted)}
+  .token{position:absolute;left:-46px;top:34px;width:38px;height:26px;border-radius:6px;
+    background:var(--cold);color:var(--bg);font:700 10px var(--mono);display:flex;align-items:center;
+    justify-content:center;opacity:0;transition:opacity .25s,transform .35s}
+  .token.show{opacity:1}
+  .outtok{position:absolute;right:-46px;top:34px;width:44px;height:26px;border-radius:6px;
+    background:var(--good);color:var(--bg);font:700 10px var(--mono);display:flex;align-items:center;
+    justify-content:center;opacity:0;transition:opacity .3s}
+  .outtok.show{opacity:1}
+
+  /* RAM */
+  .ram{border:1.5px solid var(--line);border-radius:12px;background:var(--panel-2);padding:10px;
+    min-height:150px;display:flex;flex-direction:column;gap:6px;transition:border-color .2s}
+  .ram.active{border-color:var(--accent)}
+  .slot{height:24px;border-radius:5px;background:var(--accent);color:var(--bg);
+    font:700 11px var(--mono);display:flex;align-items:center;padding:0 9px;
+    opacity:0;transform:translateX(-8px);transition:opacity .3s,transform .3s}
+  .slot.in{opacity:1;transform:none}
+  .ramempty{font-family:var(--mono);font-size:11px;color:var(--muted);text-align:center;margin:auto}
+
+  /* flying packet */
+  .packet{position:absolute;height:16px;border-radius:3px;background:var(--accent);z-index:5;
+    pointer-events:none;box-shadow:0 0 8px color-mix(in srgb,var(--accent) 60%,transparent);
+    transition:transform var(--fly,700ms) cubic-bezier(.5,0,.3,1),opacity .3s}
+
+  /* RAM comparison bars */
+  .bars{margin-top:14px}
+  .bar{display:grid;grid-template-columns:110px 1fr auto;gap:10px;align-items:center;margin:8px 0;
+    font-family:var(--mono);font-size:12px}
+  .bar .track{height:16px;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .bar .fill{height:100%;transition:width .4s}
+  .fill.stream{background:var(--accent)}
+  .fill.naive{background:var(--naive)}
+  .bar .val{color:var(--ink);min-width:78px;text-align:right;font-variant-numeric:tabular-nums}
+
+  /* stats */
+  .stats{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .tile{background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:11px 12px}
+  .tile .k{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  .tile .v{font-family:var(--mono);font-size:19px;font-weight:700;margin-top:3px;font-variant-numeric:tabular-nums}
+  .tile .v small{font-size:12px;color:var(--muted);font-weight:500}
+  .tile.hot .v{color:var(--accent)}
+
+  /* code panel */
+  .code{background:var(--code-bg);border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-top:14px}
+  .code .fn{font-family:var(--mono);font-size:11px;color:var(--muted);padding:8px 12px;border-bottom:1px solid var(--line);
+    letter-spacing:.06em}
+  pre{margin:0;padding:8px 0}
+  .cl{font-family:var(--mono);font-size:12.5px;line-height:1.85;padding:0 14px;white-space:pre;
+    border-left:3px solid transparent;transition:background .2s,border-color .2s}
+  .cl .n{display:inline-block;width:18px;color:var(--muted);opacity:.6;user-select:none}
+  .cl.on{background:color-mix(in srgb,var(--accent) 15%,transparent);border-left-color:var(--accent)}
+  .cl .cm{color:var(--muted)} .cl .kw{color:var(--accent)}
+  .hint{color:var(--muted);font-size:12px;margin-top:14px;font-family:var(--mono)}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<header><div class="wrap head">
+  <div>
+    <p class="eyebrow">live simulator</p>
+    <h1>Watch a token stream its experts</h1>
+    <p class="sub">A real, in-browser run of the streaming Mixture-of-Experts layer. Drive it, and watch which
+      experts get read from disk into RAM — with the matching code line lighting up.</p>
+  </div>
+  <div class="links">
+    📖 <a href="guide.html">read the guide</a>
+    <button class="toggle" id="themeToggle" aria-label="Toggle theme">◐ theme</button>
+  </div>
+</div></header>
+
+<div class="wrap">
+  <div class="controls">
+    <button class="btn primary" id="play">▶ Play</button>
+    <button class="btn" id="step">Step ▸</button>
+    <button class="btn" id="reset">↺ Reset</button>
+    <span class="ctl">speed <input type="range" id="speed" min="0.5" max="4" step="0.5" value="1"></span>
+    <span class="ctl">experts (N) <input type="range" id="nexp" min="8" max="4096" step="8" value="40"><b id="nexpv">40</b></span>
+    <span class="ctl">top-k <input type="range" id="topk" min="1" max="16" step="1" value="8"><b id="topkv">8</b></span>
+    <span class="presets">
+      <span class="chip" data-n="128" data-k="2">Phase-1 toy</span>
+      <span class="chip on" data-n="40" data-k="8">Granite 3 MoE</span>
+      <span class="chip" data-n="4096" data-k="8">Kimi-scale</span>
+    </span>
+  </div>
+
+  <div class="narrate"><span class="step" id="phaseName">idle</span><span id="narr">Press Play — a token will flow in, the router will pick its experts, and only those will stream from disk.</span></div>
+
+  <div class="grid">
+    <!-- LEFT: stage -->
+    <div class="card">
+      <h2>The layer, live</h2>
+      <div class="stage" id="stage">
+        <div class="col">
+          <span class="lab">Disk · model.bin (mmap)</span>
+          <div class="disk" id="disk"></div>
+          <div class="diskmeta" id="diskmeta"></div>
+        </div>
+        <div class="col" style="align-items:center">
+          <span class="lab">Router</span>
+          <div class="router" id="router">
+            <div class="r1">router</div>
+            <div class="r2" id="routerN">40 experts</div>
+            <div class="token" id="token">tok</div>
+            <div class="outtok" id="outtok">out ✓</div>
+          </div>
+        </div>
+        <div class="col">
+          <span class="lab">RAM · resident experts</span>
+          <div class="ram" id="ram"><div class="ramempty" id="ramempty">empty</div></div>
+        </div>
+      </div>
+
+      <div class="bars">
+        <div class="bar">
+          <span style="color:var(--accent)">streaming</span>
+          <div class="track"><div class="fill stream" id="barStream" style="width:2%"></div></div>
+          <span class="val" id="ramStreamV">—</span>
+        </div>
+        <div class="bar">
+          <span style="color:var(--naive)">naive (load all)</span>
+          <div class="track"><div class="fill naive" id="barNaive" style="width:100%"></div></div>
+          <span class="val" id="ramNaiveV">—</span>
+        </div>
+      </div>
+      <p class="hint">Streaming keeps only the <b id="hintK">8</b> touched experts resident; the naive loader
+        holds the whole file. Bump <b>N</b> up — the naive bar (and disk) explode while streaming barely moves.</p>
+    </div>
+
+    <!-- RIGHT: stats + code -->
+    <div class="card">
+      <h2>What’s happening</h2>
+      <div class="stats">
+        <div class="tile"><div class="k">tokens processed</div><div class="v" id="stTokens">0</div></div>
+        <div class="tile hot"><div class="k">experts touched / token</div><div class="v" id="stTouched">0 <small>/ 40</small></div></div>
+        <div class="tile"><div class="k">read this token</div><div class="v" id="stRead">0 <small>MB</small></div></div>
+        <div class="tile"><div class="k">model on disk</div><div class="v" id="stDisk">— </div></div>
+        <div class="tile hot"><div class="k">RAM resident</div><div class="v" id="stRam">— </div></div>
+        <div class="tile"><div class="k">saved vs naive</div><div class="v" id="stSave">—×</div></div>
+      </div>
+
+      <div class="code">
+        <div class="fn">phase1_moe_layer.py · the MoE layer</div>
+        <pre id="code">
+<div class="cl" data-l="1"><span class="n">1</span><span class="kw">def</span> moe_layer(x):</div>
+<div class="cl" data-l="2"><span class="n">2</span>    scores = x @ router_w        <span class="cm"># score every expert</span></div>
+<div class="cl" data-l="3"><span class="n">3</span>    top, w = top_k(scores, k)    <span class="cm"># pick the best k</span></div>
+<div class="cl" data-l="4"><span class="n">4</span>    out = 0</div>
+<div class="cl" data-l="5"><span class="n">5</span>    <span class="kw">for</span> e, w_e <span class="kw">in</span> zip(top, w):</div>
+<div class="cl" data-l="6"><span class="n">6</span>        W1, W2 = read_expert(mmap, e)  <span class="cm"># ← stream from disk</span></div>
+<div class="cl" data-l="7"><span class="n">7</span>        out += w_e * ffn(x, W1, W2)    <span class="cm"># run the expert</span></div>
+<div class="cl" data-l="8"><span class="n">8</span>    <span class="kw">return</span> out                    <span class="cm"># → next-token output</span></div>
+</pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var $=function(s){return document.querySelector(s)};
+  // ---- theme toggle ----
+  (function(){var r=document.documentElement,s=null;try{s=localStorage.getItem('moe-theme')}catch(e){}
+    if(s)r.setAttribute('data-theme',s);
+    $('#themeToggle').addEventListener('click',function(){
+      var c=r.getAttribute('data-theme'),sd=matchMedia('(prefers-color-scheme: dark)').matches;
+      if(!c)c=sd?'dark':'light'; var n=c==='dark'?'light':'dark'; r.setAttribute('data-theme',n);
+      try{localStorage.setItem('moe-theme',n)}catch(e){}});})();
+
+  // ---- config / state ----
+  var EXPERT_MB = 8.0;              // schematic size of one expert on disk
+  var CELLS = 48;                   // how many disk cells we draw
+  var N = 40, K = 8, speed = 1;
+  var playing=false, busy=false;
+  var tokens=0;
+  var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  var disk=$('#disk'), ram=$('#ram'), ramempty=$('#ramempty'),
+      router=$('#router'), token=$('#token'), outtok=$('#outtok'), stage=$('#stage');
+
+  function fmt(mb){ if(mb>=1e6) return (mb/1e6).toFixed(2)+' TB';
+                    if(mb>=1e3) return (mb/1e3).toFixed(2)+' GB'; return mb.toFixed(0)+' MB'; }
+  function wait(ms){ return new Promise(function(r){ setTimeout(r, reduce?10:ms/speed); }); }
+
+  // ---- build disk cells ----
+  var cells=[];
+  function buildDisk(){
+    disk.innerHTML=''; cells=[];
+    var shown=Math.min(N,CELLS);
+    for(var i=0;i<shown;i++){ var c=document.createElement('div'); c.className='cell'; disk.appendChild(c); cells.push(c); }
+    $('#diskmeta').textContent = (N>CELLS? (CELLS+' of '+N+' experts shown') : (N+' experts')) ;
+    $('#routerN').textContent = N+' experts';
+  }
+
+  // ---- code highlight ----
+  function setLine(l){ document.querySelectorAll('.cl').forEach(function(e){e.classList.toggle('on', +e.dataset.l===l);}); }
+  function phase(name,txt){ $('#phaseName').textContent=name; $('#narr').textContent=txt; }
+
+  // ---- flying packet ----
+  function fly(fromEl,toEl,ms){
+    var s=fromEl.getBoundingClientRect(), t=toEl.getBoundingClientRect(), st=stage.getBoundingClientRect();
+    var p=document.createElement('div'); p.className='packet';
+    p.style.setProperty('--fly',(reduce?10:ms/speed)+'ms');
+    p.style.left=(s.left-st.left)+'px'; p.style.top=(s.top-st.top+2)+'px';
+    p.style.width=Math.max(14,s.width)+'px';
+    stage.appendChild(p);
+    requestAnimationFrame(function(){ p.style.transform='translate('+(t.left-s.left)+'px,'+(t.top-s.top)+'px)'; });
+    setTimeout(function(){ p.style.opacity='0'; setTimeout(function(){p.remove();},250); }, (reduce?10:ms/speed)+30);
+  }
+
+  // ---- pick top-k (real random routing) ----
+  function pickTopK(){
+    var shown=cells.length, idx=[];
+    // random scores → take k highest (over the visible pool)
+    var order=[]; for(var i=0;i<shown;i++) order.push([Math.random(),i]);
+    order.sort(function(a,b){return b[0]-a[0]});
+    for(var j=0;j<Math.min(K,shown);j++) idx.push(order[j][1]);
+    return idx;
+  }
+
+  // ---- stats ----
+  function updateStats(){
+    var onDisk=N*EXPERT_MB, resident=K*EXPERT_MB, readTok=K*EXPERT_MB;
+    $('#stDisk').innerHTML=fmt(onDisk).replace(/ (MB|GB|TB)/,' <small>$1</small>');
+    $('#stRam').innerHTML=fmt(resident).replace(/ (MB|GB|TB)/,' <small>$1</small>');
+    $('#stRead').innerHTML=readTok.toFixed(0)+' <small>MB</small>';
+    $('#stTouched').innerHTML=K+' <small>/ '+N+'</small>';
+    $('#stSave').textContent=(onDisk/resident).toFixed(0)+'×';
+    $('#stTokens').textContent=tokens;
+    // bars (scaled to naive = full)
+    $('#barNaive').style.width='100%';
+    $('#barStream').style.width=Math.max(1.5,100*resident/onDisk)+'%';
+    $('#ramNaiveV').textContent=fmt(onDisk);
+    $('#ramStreamV').textContent=fmt(resident);
+    $('#hintK').textContent=K;
+  }
+
+  function clearRAM(){ ram.innerHTML=''; ram.appendChild(ramempty); ramempty.style.display='block'; }
+  function addSlot(e){ ramempty.style.display='none'; var s=document.createElement('div');
+    s.className='slot'; s.textContent='expert #'+e+'  ·  '+EXPERT_MB.toFixed(0)+' MB'; ram.appendChild(s);
+    requestAnimationFrame(function(){ s.classList.add('in'); }); return s; }
+
+  function clearVisuals(){
+    cells.forEach(function(c){c.className='cell'}); router.classList.remove('active');
+    token.classList.remove('show'); outtok.classList.remove('show'); setLine(0);
+  }
+
+  // ---- one token through the layer ----
+  async function processToken(){
+    if(busy) return; busy=true;
+    outtok.classList.remove('show');
+    // 1 arrive
+    setLine(1); phase('token in','A new token vector arrives at the layer.');
+    token.classList.add('show'); await wait(650);
+    // 2 route
+    setLine(2); phase('route','Router scores all '+N+' experts.'); router.classList.add('active');
+    cells.forEach(function(c){c.classList.remove('pick','streamed')}); await wait(650);
+    // 3 select
+    var picks=pickTopK();
+    setLine(3); phase('select','Top-'+K+' experts selected — the other '+Math.max(0,N-K)+' stay on disk.');
+    picks.forEach(function(i){cells[i].classList.add('pick')}); await wait(750);
+    // 4 stream + run each
+    clearRAM();
+    for(var i=0;i<picks.length;i++){
+      var e=picks[i];
+      setLine(6); phase('stream','Streaming expert #'+e+' from disk → RAM (page fault)…');
+      var slot=addSlot(e); fly(cells[e], slot, 700);
+      cells[e].classList.remove('pick'); cells[e].classList.add('streamed');
+      await wait(650);
+      setLine(7); await wait(180);
+    }
+    // 5 emit
+    setLine(8); phase('output','Experts run and combine — next-token output produced.');
+    outtok.classList.add('show'); tokens++; updateStats(); await wait(650);
+    token.classList.remove('show'); router.classList.remove('active'); setLine(0);
+    phase('idle', playing?'…next token…':'Paused. Press Play or Step.');
+    busy=false;
+  }
+
+  async function loop(){ while(playing){ await processToken(); if(!playing) break; await wait(250);} }
+
+  // ---- controls ----
+  $('#play').addEventListener('click',function(){
+    playing=!playing; this.textContent=playing?'⏸ Pause':'▶ Play'; this.classList.toggle('primary',!playing);
+    if(playing) loop();
+  });
+  $('#step').addEventListener('click',function(){ if(!playing && !busy) processToken(); });
+  $('#reset').addEventListener('click',function(){ playing=false; $('#play').textContent='▶ Play';
+    $('#play').classList.add('primary'); tokens=0; clearVisuals(); clearRAM(); updateStats();
+    phase('idle','Reset. Press Play to begin.'); });
+
+  $('#speed').addEventListener('input',function(){ speed=+this.value; });
+  function syncN(){ N=+$('#nexp').value; if(K>N)K=N; $('#nexpv').textContent=N; $('#topkv').textContent=K;
+    $('#topk').value=K; $('#topk').max=Math.min(16,N); buildDisk(); updateStats(); markPreset(); }
+  function syncK(){ K=Math.min(+$('#topk').value,N); $('#topkv').textContent=K; updateStats(); markPreset(); }
+  $('#nexp').addEventListener('input',syncN);
+  $('#topk').addEventListener('input',syncK);
+
+  function markPreset(){ document.querySelectorAll('.chip').forEach(function(c){
+    c.classList.toggle('on', +c.dataset.n===N && +c.dataset.k===K); }); }
+  document.querySelectorAll('.chip').forEach(function(c){ c.addEventListener('click',function(){
+    N=+c.dataset.n; K=+c.dataset.k; $('#nexp').value=N; $('#nexpv').textContent=N;
+    $('#topk').max=Math.min(16,N); $('#topk').value=K; $('#topkv').textContent=K;
+    buildDisk(); updateStats(); markPreset(); }); });
+
+  // ---- init ----
+  buildDisk(); clearRAM(); updateStats();
+})();
+</script>
+</body>
+</html>

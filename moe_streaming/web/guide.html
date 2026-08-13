@@ -1,0 +1,649 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Giant Models, Tiny RAM — the build guide</title>
+<style>
+  /* ── Tokens: light is the base :root; dark redefined for system + explicit ── */
+  :root{
+    --bg:#eef1f6; --panel:#ffffff; --panel-2:#f5f8fc; --code-bg:#f3f6fb;
+    --ink:#141d27; --muted:#5b6b7b; --line:#d3dce6;
+    --accent:#b9772a;        /* amber, readable as text on light */
+    --accent-bright:#c98a2e; /* marks */
+    --cold:#5f7488;          /* on-disk / idle */
+    --good:#1f7a5c;
+    --mono:ui-monospace,"SF Mono","SFMono-Regular",Menlo,Consolas,"Liberation Mono",monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#0b0f15; --panel:#121a24; --panel-2:#0e161f; --code-bg:#0d151d;
+      --ink:#e7edf4; --muted:#93a3b4; --line:#22303f;
+      --accent:#e6a54b; --accent-bright:#f0b45f; --cold:#6a8299; --good:#4fd1a5;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0b0f15; --panel:#121a24; --panel-2:#0e161f; --code-bg:#0d151d;
+    --ink:#e7edf4; --muted:#93a3b4; --line:#22303f;
+    --accent:#e6a54b; --accent-bright:#f0b45f; --cold:#6a8299; --good:#4fd1a5;
+  }
+
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+    line-height:1.62;font-size:16.5px;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:860px;margin:0 auto;padding:0 22px}
+
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  ::selection{background:var(--accent);color:var(--bg)}
+
+  /* ── Header ── */
+  header{border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,var(--panel-2),transparent)}
+  .head{padding:44px 0 30px;position:relative}
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--accent);margin:0 0 14px}
+  h1{font-size:clamp(30px,5.4vw,46px);line-height:1.05;letter-spacing:-.022em;margin:0 0 14px;
+    font-weight:800;text-wrap:balance}
+  .thesis{font-size:clamp(17px,2.4vw,20px);color:var(--muted);max-width:60ch;margin:0 0 22px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{font-family:var(--mono);font-size:12px;padding:5px 10px;border:1px solid var(--line);
+    border-radius:999px;color:var(--muted);background:var(--panel)}
+  .chip b{color:var(--ink);font-weight:600}
+  .toggle{position:absolute;top:44px;right:0;font-family:var(--mono);font-size:12px;cursor:pointer;
+    background:var(--panel);border:1px solid var(--line);color:var(--muted);border-radius:8px;
+    padding:7px 11px}
+  .toggle:hover{border-color:var(--accent);color:var(--ink)}
+
+  /* ── Sticky nav ── */
+  nav{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 88%,transparent);
+    backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+  .navrow{display:flex;gap:4px;overflow-x:auto;padding:10px 0;font-family:var(--mono);font-size:12.5px}
+  .navrow a{color:var(--muted);white-space:nowrap;padding:5px 10px;border-radius:7px}
+  .navrow a:hover{color:var(--ink);background:var(--panel);text-decoration:none}
+
+  main{padding:14px 0 60px}
+  section{padding:34px 0;border-bottom:1px solid var(--line)}
+  section:last-child{border-bottom:0}
+  .snum{font-family:var(--mono);font-size:12.5px;color:var(--accent);letter-spacing:.1em}
+  h2{font-size:clamp(23px,3.4vw,30px);line-height:1.15;letter-spacing:-.015em;margin:6px 0 4px;
+    font-weight:750;text-wrap:balance}
+  h3{font-size:18px;margin:26px 0 6px;font-weight:700;letter-spacing:-.01em}
+  p{margin:12px 0;max-width:68ch}
+  strong{font-weight:680}
+  em{font-style:normal;color:var(--accent);font-weight:600}
+  ul,ol{max-width:68ch;padding-left:20px}
+  li{margin:6px 0}
+
+  /* ── Callouts ── */
+  .note{border-left:3px solid var(--accent);background:var(--panel-2);
+    padding:14px 16px;margin:18px 0;border-radius:0 10px 10px 0}
+  .note .lab{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--accent);display:block;margin-bottom:5px}
+  .note.warn{border-color:var(--cold)}
+  .note.warn .lab{color:var(--cold)}
+
+  /* ── Code ── */
+  pre{background:var(--code-bg);border:1px solid var(--line);border-radius:10px;
+    padding:15px 16px;overflow-x:auto;margin:16px 0}
+  code{font-family:var(--mono);font-size:13.5px}
+  p code,li code,td code{background:var(--code-bg);border:1px solid var(--line);border-radius:5px;
+    padding:1px 6px;font-size:13px;color:var(--ink)}
+  pre code{background:none;border:0;padding:0;line-height:1.6;color:var(--ink)}
+  .c-com{color:var(--muted)}
+  .c-key{color:var(--accent)}
+  .c-str{color:var(--good)}
+
+  /* ── Tables ── */
+  .tablewrap{overflow-x:auto;margin:18px 0}
+  table{border-collapse:collapse;width:100%;font-size:14.5px}
+  th,td{border:1px solid var(--line);padding:9px 12px;text-align:left;vertical-align:top}
+  th{background:var(--panel-2);font-family:var(--mono);font-size:12px;letter-spacing:.04em;
+    text-transform:uppercase;color:var(--muted);font-weight:600}
+  td code{white-space:nowrap}
+  .tabnum{font-variant-numeric:tabular-nums}
+
+  /* ── Figures / diagrams ── */
+  figure{margin:22px 0;background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:18px 18px 6px}
+  figcaption{font-size:13.5px;color:var(--muted);margin-top:10px;padding-top:10px;
+    border-top:1px solid var(--line)}
+  figcaption b{color:var(--ink)}
+  .dgm{color:var(--ink);width:100%;height:auto;display:block}
+  .dgm .s{stroke:currentColor;fill:none;stroke-width:1.5}
+  .dgm .box{fill:var(--panel-2);stroke:currentColor;stroke-width:1.4}
+  .dgm .t{fill:currentColor;font:12px var(--mono)}
+  .dgm .tb{fill:currentColor;font:700 13px var(--mono)}
+  .dgm .tm{fill:var(--muted);font:11px var(--mono)}
+  .dgm .hot{fill:var(--accent);stroke:var(--accent)}
+  .dgm .hotbox{fill:var(--accent);fill-opacity:.16;stroke:var(--accent);stroke-width:1.6}
+  .dgm .hotline{stroke:var(--accent);stroke-width:2.2;fill:none}
+  .dgm .cold{fill:var(--cold);fill-opacity:.28;stroke:var(--cold);stroke-width:1.2}
+  .dgm .ah{fill:currentColor}
+  .dgm .ahh{fill:var(--accent)}
+  .dgm .hoton{fill:var(--accent);font:700 12px var(--mono)}
+
+  .lead{font-size:18px;color:var(--ink)}
+  .kv{font-family:var(--mono);font-size:13px}
+  hr.soft{border:0;border-top:1px dashed var(--line);margin:26px 0}
+  .foot{color:var(--muted);font-size:14px;padding:30px 0 50px;text-align:center;font-family:var(--mono)}
+  @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap head">
+    <button class="toggle" id="themeToggle" aria-label="Toggle color theme">◐ theme</button>
+    <p class="eyebrow">Build guide · from scratch</p>
+    <h1>Giant models, tiny RAM</h1>
+    <p class="thesis">How a “2.78-trillion-parameter model on 8&nbsp;GB of RAM” actually works — and
+      everything you need to know (transformers, Mixture-of-Experts, memory-mapping, quantization, and C)
+      to build a small version yourself.</p>
+    <div class="chips">
+      <span class="chip">learn path: <b>Python → C</b></span>
+      <span class="chip"><b>5</b> phases</span>
+      <span class="chip">assumes: <b>new to both</b></span>
+      <span class="chip">core trick: <b>MoE + mmap</b></span>
+    </div>
+  </div>
+</header>
+
+<nav>
+  <div class="wrap navrow">
+    <a href="#claim">The claim</a>
+    <a href="#idea">The one idea</a>
+    <a href="#transformer">Transformers 101</a>
+    <a href="#moe">Mixture of Experts</a>
+    <a href="#memory">Memory &amp; disk</a>
+    <a href="#quant">Quantization</a>
+    <a href="#c">The C you need</a>
+    <a href="#build">What we build</a>
+    <a href="#real">Reality checks</a>
+    <a href="#glossary">Glossary</a>
+  </div>
+</nav>
+
+<main class="wrap">
+
+<!-- ───────────────────────────── 1 ───────────────────────────── -->
+<section id="claim">
+  <p class="snum">01</p>
+  <h2>The claim we’re decoding</h2>
+  <p>A viral post described an open-source project — <code>kimi-k3-in-c</code> — like this:</p>
+  <div class="note">
+    <span class="lab">the post</span>
+    “You can now run a <b>2.78&nbsp;trillion parameter</b> model on a CPU with <b>8.24&nbsp;GB of RAM</b>.
+    A 176&nbsp;KB pure C99 engine that <b>streams the model’s experts from disk</b> instead of loading them
+    into memory. No GPU. No CUDA. No framework.”
+  </div>
+  <p>Taken at face value this sounds impossible: a 2.78-trillion-parameter model would normally need
+    <em>terabytes</em> of memory. The trick is that two facts combine so that the numbers stop fighting
+    each other — one about the <strong>model</strong>, one about the <strong>operating system</strong>.
+    This guide unpacks both, from zero, and lays out a path to build a working small version.</p>
+  <p class="lead"><strong>Essence:</strong> it’s a normal LLM engine whose feed-forward layers read their
+    weights from a <em>memory-mapped file on disk</em> instead of RAM — and because the model only uses a
+    few of its weights per word, only a few get read.</p>
+</section>
+
+<!-- ───────────────────────────── 2 ───────────────────────────── -->
+<section id="idea">
+  <p class="snum">02</p>
+  <h2>The one idea, then everything else is plumbing</h2>
+  <p>Keep this picture in your head; the rest of the guide is just the details behind it.</p>
+
+  <figure>
+    <svg class="dgm" viewBox="0 0 760 430" role="img"
+      aria-label="Two rows compare loading a model. Naive loads all 128 experts into a large RAM box of about 1074 megabytes. Streaming reads only 2 of 128 experts into a tiny RAM box of about 17 megabytes.">
+      <defs>
+        <marker id="arA" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+          <path class="ah" d="M0 0 L9 4.5 L0 9 Z"/></marker>
+        <marker id="arAh" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+          <path class="ahh" d="M0 0 L9 4.5 L0 9 Z"/></marker>
+      </defs>
+
+      <!-- ROW 1 : NAIVE -->
+      <text class="tb" x="20" y="30">NAIVE  —  load the whole file</text>
+      <text class="tm" x="40" y="52">DISK · model.bin</text>
+      <!-- disk stack (represents 128 experts) -->
+      <g>
+        <rect class="box" x="40" y="60" width="120" height="112" rx="4"/>
+        <line class="s" x1="40" y1="82"  x2="160" y2="82"/>
+        <line class="s" x1="40" y1="104" x2="160" y2="104"/>
+        <line class="s" x1="40" y1="126" x2="160" y2="126"/>
+        <line class="s" x1="40" y1="148" x2="160" y2="148"/>
+        <text class="tm" x="100" y="188" text-anchor="middle">128 experts</text>
+      </g>
+      <line class="s" x1="168" y1="116" x2="352" y2="116" marker-end="url(#arA)"/>
+      <text class="tm" x="260" y="108" text-anchor="middle">read all 128</text>
+      <!-- big RAM box, full -->
+      <rect class="hotbox" x="360" y="58" width="230" height="116" rx="6"/>
+      <rect class="hot" x="360" y="58" width="230" height="116" rx="6" fill-opacity="0.5"/>
+      <text class="tb" x="475" y="104" text-anchor="middle" fill="var(--bg)" style="fill:var(--bg)">RAM</text>
+      <text class="hoton" x="620" y="112">≈ 1074 MB</text>
+      <text class="tm" x="620" y="130">OOM-kills you</text>
+
+      <!-- divider -->
+      <line class="s" x1="20" y1="215" x2="740" y2="215" stroke-dasharray="4 5" opacity="0.5"/>
+
+      <!-- ROW 2 : STREAMING -->
+      <text class="tb" x="20" y="255">STREAMING  —  read only what the router picks</text>
+      <text class="tm" x="40" y="277">DISK · model.bin  (mmap)</text>
+      <g>
+        <rect class="box" x="40" y="285" width="120" height="112" rx="4"/>
+        <line class="s" x1="40" y1="307" x2="160" y2="307"/>
+        <rect class="hot" x="41" y="308" width="118" height="21" fill-opacity="0.85"/>
+        <line class="s" x1="40" y1="329" x2="160" y2="329"/>
+        <line class="s" x1="40" y1="351" x2="160" y2="351"/>
+        <rect class="hot" x="41" y="352" width="118" height="21" fill-opacity="0.85"/>
+        <text class="tm" x="100" y="413" text-anchor="middle">2 of 128 touched</text>
+      </g>
+      <line class="hotline" x1="168" y1="341" x2="352" y2="341" marker-end="url(#arAh)"/>
+      <text class="hoton" x="260" y="333" text-anchor="middle">read 2 of 128</text>
+      <!-- small RAM box, mostly empty -->
+      <rect class="box" x="360" y="283" width="230" height="116" rx="6"/>
+      <rect class="hot" x="368" y="300" width="60" height="18" fill-opacity="0.85"/>
+      <rect class="hot" x="368" y="324" width="60" height="18" fill-opacity="0.85"/>
+      <text class="tb" x="475" y="380" text-anchor="middle">RAM</text>
+      <text class="hoton" x="620" y="337">≈ 17 MB</text>
+      <text class="tm" x="620" y="355">stays flat</text>
+    </svg>
+    <figcaption><b>Same model, same output, 62× less RAM.</b> Both paths point at the same file on disk;
+      the only difference is that streaming reads the 2 experts the router selected instead of all 128.
+      Grow the model to trillions of parameters and the disk file balloons — but the RAM figure barely
+      moves, because you still touch only ~2 experts per word.</figcaption>
+  </figure>
+
+  <div class="note"><span class="lab">see it run</span>
+    Prefer to watch it happen? Open the <a href="demo.html"><b>live simulator</b></a> — a token flows in,
+    the router picks its experts, and only those stream from disk into RAM, with the matching code line
+    lighting up. Drag <code>N</code> and <code>top-k</code> and watch the numbers move.</div>
+  <p>Those are the two facts:</p>
+  <ol>
+    <li><strong>The model is sparse (Mixture of Experts).</strong> Each layer holds hundreds of “experts,”
+      but a tiny router uses only a handful per word. → <a href="#moe">§04</a></li>
+    <li><strong>The OS loads files lazily (memory-mapping).</strong> A memory-mapped file isn’t read until
+      you <em>touch</em> it, and can be dropped from RAM when space is tight. Touch few experts → few bytes
+      resident. → <a href="#memory">§05</a></li>
+  </ol>
+  <p>To get there you first need to know what an LLM actually computes. That’s next.</p>
+</section>
+
+<!-- ───────────────────────────── 3 ───────────────────────────── -->
+<section id="transformer">
+  <p class="snum">03</p>
+  <h2>Transformers, from zero</h2>
+  <p>An LLM is a function that reads a sequence of words and predicts the next one. It does this by turning
+    words into vectors of numbers and pushing them through a stack of identical <strong>layers</strong>.
+    Here is the whole forward pass — the loop that runs once per generated word:</p>
+
+  <figure>
+    <svg class="dgm" viewBox="0 0 620 470" role="img"
+      aria-label="A vertical transformer forward pass: token id to embedding, then a repeated layer of RMSNorm, attention with KV cache, and a Mixture-of-Experts feed-forward block, then final norm, logits, and sampling the next token, which loops back to the input.">
+      <defs>
+        <marker id="arT" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+          <path class="ah" d="M0 0 L9 4.5 L0 9 Z"/></marker>
+        <marker id="arTh" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+          <path class="ahh" d="M0 0 L9 4.5 L0 9 Z"/></marker>
+      </defs>
+      <!-- input -->
+      <rect class="box" x="200" y="16" width="220" height="34" rx="7"/>
+      <text class="t" x="310" y="38" text-anchor="middle">token id  →  embedding vector</text>
+      <line class="s" x1="310" y1="50" x2="310" y2="72" marker-end="url(#arT)"/>
+
+      <!-- repeated layer block -->
+      <rect class="s" x="70" y="74" width="480" height="250" rx="12" stroke-dasharray="5 5"/>
+      <text class="hoton" x="80" y="94">repeat ×L layers</text>
+
+      <rect class="box" x="150" y="104" width="320" height="34" rx="7"/>
+      <text class="t" x="310" y="126" text-anchor="middle">RMSNorm  (scale the vector)</text>
+      <line class="s" x1="310" y1="138" x2="310" y2="156" marker-end="url(#arT)"/>
+
+      <rect class="box" x="150" y="158" width="320" height="42" rx="7"/>
+      <text class="t" x="310" y="176" text-anchor="middle">Attention  —  mix in other words</text>
+      <text class="tm" x="310" y="192" text-anchor="middle">Q·K·V · RoPE · softmax · KV-cache</text>
+      <text class="tm" x="486" y="182">+ residual</text>
+      <line class="s" x1="310" y1="200" x2="310" y2="222" marker-end="url(#arT)"/>
+
+      <rect class="box" x="150" y="224" width="320" height="34" rx="7"/>
+      <text class="t" x="310" y="246" text-anchor="middle">RMSNorm</text>
+      <line class="s" x1="310" y1="258" x2="310" y2="276" marker-end="url(#arTh)"/>
+
+      <rect class="hotbox" x="150" y="278" width="320" height="40" rx="7"/>
+      <text class="hoton" x="310" y="296" text-anchor="middle">MoE feed-forward  ← the streamed part</text>
+      <text class="tm" x="310" y="311" text-anchor="middle">router → top-k experts → weighted sum</text>
+
+      <line class="s" x1="310" y1="324" x2="310" y2="344" marker-end="url(#arT)"/>
+      <rect class="box" x="185" y="346" width="250" height="30" rx="7"/>
+      <text class="t" x="310" y="366" text-anchor="middle">final RMSNorm → logits</text>
+      <line class="s" x1="310" y1="376" x2="310" y2="396" marker-end="url(#arT)"/>
+      <rect class="box" x="185" y="398" width="250" height="32" rx="7"/>
+      <text class="t" x="310" y="418" text-anchor="middle">sample → next token</text>
+
+      <!-- autoregressive loop -->
+      <path class="hotline" d="M185 414 H70 V33 H196" fill="none" marker-end="url(#arTh)"/>
+      <text class="hoton" x="60" y="230" text-anchor="middle" transform="rotate(-90 60 230)">feed the new token back in</text>
+    </svg>
+    <figcaption><b>The forward pass.</b> Everything is standard except the highlighted <b>MoE feed-forward</b>
+      block — that’s the only place experts get streamed from disk. The amber loop shows autoregression:
+      each predicted token becomes the next input.</figcaption>
+  </figure>
+
+  <h3>The pieces, defined once</h3>
+  <div class="tablewrap">
+  <table>
+    <tr><th>Term</th><th>What it is (plain)</th><th>Why it’s here</th></tr>
+    <tr><td><b>Token</b></td><td>A word or word-piece; the model works in these units.</td><td>Input/output are token ids.</td></tr>
+    <tr><td><b>Embedding</b></td><td>A lookup table mapping each token id to a vector (e.g. 4096 numbers).</td><td>Turns discrete words into math.</td></tr>
+    <tr><td><b>Attention</b></td><td>Lets each word look at earlier words and pull in what’s relevant, via Query·Key·Value dot-products.</td><td>How context is mixed in.</td></tr>
+    <tr><td><b>RoPE</b></td><td>Rotary position encoding — rotates Q/K so the model knows word <em>order</em>.</td><td>“cat sat” ≠ “sat cat”.</td></tr>
+    <tr><td><b>KV cache</b></td><td>Saved Keys/Values for past words so you don’t recompute them each step.</td><td>The main <b>always-in-RAM</b> cost; grows with context.</td></tr>
+    <tr><td><b>RMSNorm</b></td><td>Rescales a vector to a stable size before each sub-layer.</td><td>Keeps the math from exploding.</td></tr>
+    <tr><td><b>Feed-forward (FFN)</b></td><td>Two matrix multiplies with a nonlinearity: <code>x → act(x·W1) · W2</code>.</td><td>Where most parameters live — and what MoE splits into experts.</td></tr>
+    <tr><td><b>Residual</b></td><td>Add a sub-layer’s output back to its input (<code>x + f(x)</code>).</td><td>Lets information flow through deep stacks.</td></tr>
+    <tr><td><b>Logits → sampling</b></td><td>Final scores over the vocabulary; pick the next token from them.</td><td>Produces the actual output word.</td></tr>
+  </table>
+  </div>
+  <div class="note warn"><span class="lab">what to hold onto</span>
+    Two things dominate memory. <b>FFN/expert weights</b> are huge but <em>sparsely used</em> — the streaming
+    target. The <b>KV cache + attention</b> are smaller but <em>always resident</em> — that’s your real RAM
+    floor, the reason it’s “8&nbsp;GB” and not “8&nbsp;MB”.</div>
+</section>
+
+<!-- ───────────────────────────── 4 ───────────────────────────── -->
+<section id="moe">
+  <p class="snum">04</p>
+  <h2>Mixture of Experts — the sparsity that makes it possible</h2>
+  <p>In a normal (“dense”) transformer, the FFN is one big pair of matrices that <em>every</em> word passes
+    through. A Mixture-of-Experts layer replaces that with <strong>N separate FFNs (“experts”)</strong> plus
+    a small <strong>router</strong> that picks the best <strong>top-k</strong> for each word. So the model
+    can hold enormous total knowledge while each word only pays for k experts.</p>
+
+  <figure>
+    <svg class="dgm" viewBox="0 0 720 300" role="img"
+      aria-label="A token vector enters a router that scores eight experts; the top two are selected, run their feed-forward networks, and their outputs are combined by a weighted sum into the output vector. The other six experts are skipped and stay on disk.">
+      <defs>
+        <marker id="arM" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+          <path class="ah" d="M0 0 L9 4.5 L0 9 Z"/></marker>
+        <marker id="arMh" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+          <path class="ahh" d="M0 0 L9 4.5 L0 9 Z"/></marker>
+      </defs>
+      <rect class="box" x="16" y="128" width="86" height="40" rx="7"/>
+      <text class="t" x="59" y="152" text-anchor="middle">token</text>
+      <line class="s" x1="102" y1="148" x2="132" y2="148" marker-end="url(#arM)"/>
+      <rect class="box" x="134" y="120" width="96" height="56" rx="7"/>
+      <text class="tb" x="182" y="144" text-anchor="middle">router</text>
+      <text class="tm" x="182" y="162" text-anchor="middle">scores all N</text>
+
+      <!-- experts column -->
+      <g font-family="var(--mono)">
+        <!-- expert boxes -->
+        <rect class="cold" x="300" y="12"  width="150" height="26" rx="5"/><text class="tm" x="375" y="30" text-anchor="middle">expert 1 · skipped</text>
+        <rect class="hotbox" x="300" y="46" width="150" height="26" rx="5"/><text class="hoton" x="375" y="64" text-anchor="middle">expert 2 · RUN</text>
+        <rect class="cold" x="300" y="80"  width="150" height="26" rx="5"/><text class="tm" x="375" y="98" text-anchor="middle">expert 3 · skipped</text>
+        <rect class="cold" x="300" y="114" width="150" height="26" rx="5"/><text class="tm" x="375" y="132" text-anchor="middle">expert 4 · skipped</text>
+        <rect class="cold" x="300" y="148" width="150" height="26" rx="5"/><text class="tm" x="375" y="166" text-anchor="middle">expert 5 · skipped</text>
+        <rect class="hotbox" x="300" y="182" width="150" height="26" rx="5"/><text class="hoton" x="375" y="200" text-anchor="middle">expert 6 · RUN</text>
+        <rect class="cold" x="300" y="216" width="150" height="26" rx="5"/><text class="tm" x="375" y="234" text-anchor="middle">expert 7 · skipped</text>
+        <rect class="cold" x="300" y="250" width="150" height="26" rx="5"/><text class="tm" x="375" y="268" text-anchor="middle">expert 8 · skipped</text>
+      </g>
+      <!-- router to selected -->
+      <path class="hotline" d="M230 140 C 265 90, 270 70, 298 60" marker-end="url(#arMh)"/>
+      <path class="hotline" d="M230 156 C 265 190, 270 195, 298 195" marker-end="url(#arMh)"/>
+      <text class="hoton" x="250" y="118">top-2</text>
+
+      <!-- selected to sum -->
+      <line class="hotline" x1="452" y1="59"  x2="560" y2="130" marker-end="url(#arMh)"/>
+      <line class="hotline" x1="452" y1="195" x2="560" y2="166" marker-end="url(#arMh)"/>
+      <circle class="hotbox" cx="590" cy="148" r="26"/>
+      <text class="hoton" x="590" y="153" text-anchor="middle">Σ w</text>
+      <line class="s" x1="616" y1="148" x2="648" y2="148" marker-end="url(#arM)"/>
+      <rect class="box" x="650" y="128" width="62" height="40" rx="7"/>
+      <text class="t" x="681" y="152" text-anchor="middle">out</text>
+      <text class="tm" x="590" y="196" text-anchor="middle">weighted sum</text>
+    </svg>
+    <figcaption><b>Routing.</b> Only the two selected experts run and only their weights are read from disk;
+      the other six are never touched. Real models use numbers like <b>top-8 of 256</b> (Kimi/DeepSeek-scale
+      go far larger) — the more experts, the more total parameters for the same per-word cost.</figcaption>
+  </figure>
+
+  <p>In pseudocode the MoE layer is tiny — and line 4 is where streaming happens:</p>
+  <pre><code><span class="c-key">def</span> moe_layer(x, router_w):
+    scores   = x @ router_w              <span class="c-com"># score every expert</span>
+    top, wts = top_k(scores, k=<span class="c-str">2</span>)      <span class="c-com"># pick the best k + their weights</span>
+    out = <span class="c-str">0</span>
+    <span class="c-key">for</span> e, w <span class="c-key">in</span> zip(top, wts):
+        W1, W2 = read_expert(mmap, e)     <span class="c-com"># ← touches ONLY expert e on disk</span>
+        out += w * ffn(x, W1, W2)         <span class="c-com"># run it, scale by its weight</span>
+    <span class="c-key">return</span> out</code></pre>
+  <p>Some models also keep one or two <strong>shared experts</strong> that always run (a common backbone),
+    plus the top-k routed ones. Doesn’t change the picture — still a small, fixed number of experts per word.</p>
+</section>
+
+<!-- ───────────────────────────── 5 ───────────────────────────── -->
+<section id="memory">
+  <p class="snum">05</p>
+  <h2>Memory &amp; disk — how “streaming from disk” really works</h2>
+  <p>Here’s the part people find magical, but it’s just how operating systems have worked for decades.
+    When you <strong>memory-map</strong> a file (<code>mmap</code> in C, <code>np.memmap</code> in Python),
+    the OS makes the file’s bytes <em>appear</em> at an address range in your program — but copies
+    <strong>nothing</strong> into RAM. RAM fills in only when you actually read a byte.</p>
+
+  <figure>
+    <svg class="dgm" viewBox="0 0 720 300" role="img"
+      aria-label="A program's virtual address space maps to a file on disk made of pages. Reading one address triggers a page fault, which loads just that 4-kilobyte page into a RAM frame. Untouched pages stay on disk. Under memory pressure, clean pages are evicted and re-read later.">
+      <defs>
+        <marker id="arP" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+          <path class="ah" d="M0 0 L9 4.5 L0 9 Z"/></marker>
+        <marker id="arPh" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+          <path class="ahh" d="M0 0 L9 4.5 L0 9 Z"/></marker>
+      </defs>
+      <!-- program -->
+      <text class="tb" x="20" y="28">your program</text>
+      <text class="tm" x="20" y="46">reads address → expert 6</text>
+      <rect class="box" x="20" y="58" width="150" height="40" rx="7"/>
+      <text class="t" x="95" y="82" text-anchor="middle">mm[expert6]</text>
+      <line class="hotline" x1="170" y1="78" x2="250" y2="78" marker-end="url(#arPh)"/>
+      <text class="hoton" x="210" y="70" text-anchor="middle">touch</text>
+
+      <!-- page fault -->
+      <rect class="hotbox" x="252" y="56" width="150" height="44" rx="7"/>
+      <text class="hoton" x="327" y="76" text-anchor="middle">PAGE FAULT</text>
+      <text class="tm" x="327" y="92" text-anchor="middle">OS: “not in RAM yet”</text>
+
+      <!-- disk -->
+      <text class="tb" x="470" y="28">DISK · model.bin (pages)</text>
+      <g>
+        <rect class="cold" x="470" y="40" width="230" height="20" rx="3"/><text class="tm" x="585" y="55" text-anchor="middle">page · expert 1</text>
+        <rect class="cold" x="470" y="64" width="230" height="20" rx="3"/><text class="tm" x="585" y="79" text-anchor="middle">page · expert 3</text>
+        <rect class="hot"  x="470" y="88" width="230" height="20" rx="3" fill-opacity="0.85"/><text class="tb" x="585" y="103" text-anchor="middle" fill="var(--bg)" style="fill:var(--bg)">page · expert 6</text>
+        <rect class="cold" x="470" y="112" width="230" height="20" rx="3"/><text class="tm" x="585" y="127" text-anchor="middle">page · expert 7</text>
+        <rect class="cold" x="470" y="136" width="230" height="20" rx="3"/><text class="tm" x="585" y="151" text-anchor="middle">…hundreds more…</text>
+      </g>
+      <!-- load one page into RAM frame -->
+      <path class="hotline" d="M470 98 C 380 150, 300 150, 252 150" fill="none" marker-end="url(#arPh)"/>
+      <text class="hoton" x="360" y="140" text-anchor="middle">load just this 4 KB page</text>
+
+      <!-- RAM -->
+      <text class="tb" x="20" y="150">RAM (small)</text>
+      <rect class="box" x="20" y="160" width="230" height="120" rx="7"/>
+      <rect class="hot" x="30" y="176" width="210" height="20" rx="3" fill-opacity="0.85"/>
+      <text class="t" x="135" y="191" text-anchor="middle">expert 6 · resident</text>
+      <text class="tm" x="30" y="222">…mostly empty…</text>
+      <text class="tm" x="30" y="246">under pressure the OS</text>
+      <text class="tm" x="30" y="262">evicts clean pages —</text>
+      <text class="tm" x="30" y="278">it can re-read them from disk.</text>
+    </svg>
+    <figcaption><b>Demand paging.</b> A memory-mapped file is loaded one 4&nbsp;KB page at a time, only on
+      access. Untouched experts never enter RAM; touched-but-idle ones can be evicted (they’re clean copies
+      of the file). You write <em>no</em> explicit read/evict code — the OS page cache is the streaming engine.</figcaption>
+  </figure>
+
+  <h3>Why file <em>layout</em> is the quiet hero</h3>
+  <p>Paging is only cheap if an expert’s bytes sit <strong>contiguously</strong> on disk. Then “read expert 6”
+    is one sequential run of a few pages. If an expert’s weights were scattered across the file, one lookup
+    would fault in dozens of random pages — slow. So the offline exporter’s job is to <strong>lay each expert
+    out as one contiguous blob</strong>. That layout choice is doing as much work as <code>mmap</code> itself.</p>
+
+  <div class="note"><span class="lab">the catch</span>
+    Disk is <b>orders of magnitude slower</b> than RAM, which is slower than a GPU’s memory. Streaming trades
+    <b>speed for capacity</b>: you <em>can</em> run the model, but slowly (low tokens/second). And you still
+    need hundreds of GB of <b>disk</b> to hold the full model — the “8&nbsp;GB” is the RAM figure only.</div>
+</section>
+
+<!-- ───────────────────────────── 6 ───────────────────────────── -->
+<section id="quant">
+  <p class="snum">06</p>
+  <h2>Quantization — shrinking the weights</h2>
+  <p>A raw parameter is a 32-bit float (4 bytes). At 2.78T params that’s ~11&nbsp;TB — even on disk that’s a
+    lot. <strong>Quantization</strong> stores each weight in far fewer bits (8, 4, even ~2) by keeping a small
+    scale factor per group of weights and packing the rest as tiny integers.</p>
+  <pre><code><span class="c-com"># quantize a block: keep one scale, store ints</span>
+scale   = max(abs(block)) / <span class="c-str">127</span>
+q_block = round(block / scale)         <span class="c-com"># now each weight is an int8</span>
+
+<span class="c-com"># dequantize on the fly when you read an expert</span>
+weight  = q_block * scale              <span class="c-com"># back to a float, at read time</span></code></pre>
+  <p>Two things matter for this project: it makes the on-disk file small enough to be practical, and the
+    <strong>dequant step happens as you stream</strong> — you read the packed bytes for the chosen expert and
+    unpack them to floats just before the matrix multiply. Your dequant math must exactly mirror how the
+    exporter packed them, or you get garbage.</p>
+</section>
+
+<!-- ───────────────────────────── 7 ───────────────────────────── -->
+<section id="c">
+  <p class="snum">07</p>
+  <h2>The C you’ll need (the final phase)</h2>
+  <p>We build in Python first, then port the hot path to C for the “176&nbsp;KB, no framework” version.
+    The C concepts that carry the project:</p>
+  <div class="tablewrap">
+  <table>
+    <tr><th>Concept</th><th>What it means</th><th>Used for</th></tr>
+    <tr><td><b>Pointers</b></td><td>A variable holding a memory address; <code>*p</code> reads what it points at.</td><td>Walking through weight bytes.</td></tr>
+    <tr><td><b>Structs</b></td><td>A bundle of fields (like a record) describing, e.g., the file header.</td><td>Model config, offsets, shapes.</td></tr>
+    <tr><td><b><code>malloc</code>/<code>free</code></b></td><td>Manually ask for / return RAM. No garbage collector.</td><td>Activations, the KV cache.</td></tr>
+    <tr><td><b>File I/O + <code>fstat</code></b></td><td>Open a file, learn its size.</td><td>Preparing to map the model.</td></tr>
+    <tr><td><b><code>mmap</code></b></td><td>The syscall that maps a file into your address space (the streaming core).</td><td>Experts on disk → pointer.</td></tr>
+    <tr><td><b>Float/byte layout</b></td><td>How numbers are laid out in memory; casting a byte pointer to <code>float*</code>.</td><td>Reading weights, dequant.</td></tr>
+    <tr><td><b>SIMD / threads</b> <span class="tm">(later)</span></td><td>Do many multiply-adds at once / across cores.</td><td>Making the matmul fast.</td></tr>
+  </table>
+  </div>
+  <p>The entire streaming mechanism in C is essentially this — the OS does the rest:</p>
+  <pre><code><span class="c-key">int</span> fd = open(<span class="c-str">"model.bin"</span>, O_RDONLY);
+<span class="c-key">struct</span> stat st; fstat(fd, &amp;st);
+<span class="c-com">/* map the whole file — copies NOTHING into RAM yet */</span>
+<span class="c-key">float</span> *weights = mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, fd, <span class="c-str">0</span>);
+
+<span class="c-com">/* touch expert e → OS faults in just its pages */</span>
+<span class="c-key">float</span> *W1 = weights + expert_offset(e);
+<span class="c-com">/* ...use W1 in the matmul... */</span></code></pre>
+  <p>That’s the whole trick in C: <code>mmap</code> once, index into it, and let demand paging stream the
+    bytes. No <code>read()</code> loop, no manual cache.</p>
+</section>
+
+<!-- ───────────────────────────── 8 ───────────────────────────── -->
+<section id="build">
+  <p class="snum">08</p>
+  <h2>What we’re building — two pieces &amp; five phases</h2>
+  <p>Every engine like this is really two programs:</p>
+  <ul>
+    <li><strong>An exporter</strong> (Python, run once): convert real model weights → your own binary format,
+      quantized, with each expert laid out contiguously and a header of shapes/offsets.</li>
+    <li><strong>A runtime</strong> (the small C engine): tokenizer → forward pass → sampling, where the MoE
+      block reads experts from the memory-mapped file.</li>
+  </ul>
+
+  <h3>Phase 1 is already working</h3>
+  <p>You’ve run <code>phase1_moe_layer.py</code> — the isolated streaming MoE layer. It proved the whole idea
+    with real numbers:</p>
+  <div class="tablewrap">
+  <table>
+    <tr><th>&nbsp;</th><th class="tabnum">Model on disk</th><th class="tabnum">Experts read</th><th class="tabnum">RAM grew</th></tr>
+    <tr><td><b>Streaming</b></td><td class="tabnum">1074 MB</td><td class="tabnum">2 of 128 (~17 MB)</td><td class="tabnum"><b>~17 MB</b></td></tr>
+    <tr><td><b>Naive</b></td><td class="tabnum">1074 MB</td><td class="tabnum">all 128</td><td class="tabnum">~1074 MB</td></tr>
+  </table>
+  </div>
+
+  <h3>The road ahead</h3>
+  <div class="tablewrap">
+  <table>
+    <tr><th>Phase</th><th>You build</th><th>You learn</th><th>Lang</th></tr>
+    <tr><td><b>1 ✓</b></td><td>Streaming MoE layer, isolated</td><td>the core trick (mmap + sparsity)</td><td>Python</td></tr>
+    <tr><td><b>2</b></td><td>A tiny full transformer (attention + norm + FFN)</td><td>what a forward pass is</td><td>Python</td></tr>
+    <tr><td><b>3</b></td><td>Transformer whose FFN layers are streaming-MoE</td><td>the whole architecture</td><td>Python</td></tr>
+    <tr><td><b>4</b></td><td>Load a real small MoE model (mmap’d safetensors) + tokenizer + quant</td><td>real weights, real output</td><td>Python</td></tr>
+    <tr><td><b>5</b></td><td>Port the hot path to C</td><td><code>mmap</code>, pointers, dequant in C</td><td>C</td></tr>
+  </table>
+  </div>
+  <p>Each phase is runnable and builds on the last. We never jump to a giant model — the technique is
+    identical at any size; only the file gets bigger.</p>
+</section>
+
+<!-- ───────────────────────────── 9 ───────────────────────────── -->
+<section id="real">
+  <p class="snum">09</p>
+  <h2>Reality checks (so the headline doesn’t bite you)</h2>
+  <ul>
+    <li><strong>Speed.</strong> It’s disk-bound → low tokens/second. This is a “can it run at all” feat, not
+      “run it fast.” A GPU or enough RAM to hold the working set is still far faster.</li>
+    <li><strong>Disk, not RAM, is the real footprint.</strong> The full quantized model is still hundreds of
+      GB on disk. The “8&nbsp;GB” is only what’s resident at once.</li>
+    <li><strong>You need the weights.</strong> We’ll prototype on a <em>small</em> open MoE (OLMoE, Qwen-MoE,
+      Mixtral-scale) — not a 2.78T model you’d have to download in full.</li>
+    <li><strong>Correctness is the grind.</strong> ~70% of the work is matching a reference model’s output
+      exactly: one wrong transpose, RoPE detail, or dequant rounding and it outputs noise.</li>
+    <li><strong>Claims from the wild.</strong> The specific project/numbers in that post are unverified here;
+      the <em>technique</em> is decades-old and sound. Trust the mechanism, check the benchmarks.</li>
+  </ul>
+  <div class="note"><span class="lab">connection to your own stack</span>
+    This is the same RAM-vs-capability tradeoff that OOM-killed <code>qwen2.5:7b</code> under Docker’s
+    3.5&nbsp;GB cap and forced you to the 3B model — pushed to the extreme: run an <em>enormous</em> model on
+    tiny RAM, but slowly.</div>
+</section>
+
+<!-- ───────────────────────────── 10 ───────────────────────────── -->
+<section id="glossary">
+  <p class="snum">10</p>
+  <h2>One-screen glossary</h2>
+  <div class="tablewrap">
+  <table>
+    <tr><th>Term</th><th>One-line meaning</th></tr>
+    <tr><td class="kv">MoE</td><td>Mixture of Experts — many small FFNs, a router picks a few per word.</td></tr>
+    <tr><td class="kv">expert</td><td>One FFN inside an MoE layer; most of the model’s parameters live here.</td></tr>
+    <tr><td class="kv">router / gate</td><td>Tiny network that scores experts and selects the top-k.</td></tr>
+    <tr><td class="kv">top-k</td><td>How many experts run per word (e.g. 2, or 8).</td></tr>
+    <tr><td class="kv">mmap</td><td>Map a file into memory; bytes load lazily on first access.</td></tr>
+    <tr><td class="kv">page / page fault</td><td>OS memory unit (~4 KB); a fault loads one page on demand.</td></tr>
+    <tr><td class="kv">page cache</td><td>OS-managed RAM holding recently-touched file pages; evictable.</td></tr>
+    <tr><td class="kv">KV cache</td><td>Stored attention Keys/Values for past tokens; always resident, grows with context.</td></tr>
+    <tr><td class="kv">quantization</td><td>Storing weights in few bits + a scale; dequantized at read time.</td></tr>
+    <tr><td class="kv">dense</td><td>A normal (non-MoE) layer where every weight is used every time.</td></tr>
+    <tr><td class="kv">safetensors</td><td>A common on-disk weight format that is itself memory-mappable.</td></tr>
+  </table>
+  </div>
+</section>
+
+</main>
+
+<p class="foot"><a href="demo.html">▶ live simulator</a> · phase 1 runs · <code>python moe_streaming/phase1_moe_layer.py</code> · then we build phase 2</p>
+
+<script>
+  // Theme toggle: explicit choice wins over system, persisted.
+  (function(){
+    var root=document.documentElement, btn=document.getElementById('themeToggle');
+    var saved=null; try{saved=localStorage.getItem('moe-theme');}catch(e){}
+    if(saved){root.setAttribute('data-theme',saved);}
+    btn.addEventListener('click',function(){
+      var cur=root.getAttribute('data-theme');
+      var sysDark=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if(!cur){cur=sysDark?'dark':'light';}
+      var next=cur==='dark'?'light':'dark';
+      root.setAttribute('data-theme',next);
+      try{localStorage.setItem('moe-theme',next);}catch(e){}
+    });
+  })();
+</script>
+</body>
+</html>
