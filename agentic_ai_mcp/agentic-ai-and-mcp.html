@@ -1,0 +1,1796 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Agent Loop</title>
+<style>
+/* ── tokens ───────────────────────────────────────────────────────────── */
+:root{
+  --ground:#EAEBE4;
+  --surface:#F5F6F0;
+  --surface-2:#DFE1D8;
+  --ink:#171B18;
+  --ink-2:#525A54;
+  --ink-3:#7D857E;
+  --rule:#C6C9BF;
+  --rule-soft:#D6D9CF;
+  --jade:#0B6350;
+  --jade-ink:#084A3C;
+  --jade-wash:rgba(11,99,80,.09);
+  --amber:#8A5410;
+  --amber-wash:rgba(138,84,16,.10);
+  --code-bg:#181C19;
+  --code-fg:#D9E0DA;
+  --code-dim:#7E8A81;
+  --code-key:#7FC9AE;
+  --code-str:#D6B36A;
+  --code-com:#68746C;
+  --shadow:0 1px 0 rgba(23,27,24,.06), 0 8px 24px -18px rgba(23,27,24,.5);
+
+  --font-mono:ui-monospace,"SF Mono",SFMono-Regular,"JetBrains Mono","IBM Plex Mono",Menlo,Consolas,"Liberation Mono",monospace;
+  --font-serif:"Charter","Bitstream Charter","Iowan Old Style","Source Serif 4","Sitka Text",Georgia,"Times New Roman",serif;
+
+  --s--1:.795rem;
+  --s-0:1.0625rem;
+  --s-1:1.22rem;
+  --s-2:1.5rem;
+  --s-3:1.95rem;
+  --s-4:2.5rem;
+  --s-5:3.4rem;
+
+  --col:68ch;
+  --gap:1.6rem;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#151814;
+    --surface:#1C211D;
+    --surface-2:#252B26;
+    --ink:#E3E8E1;
+    --ink-2:#9AA39B;
+    --ink-3:#79837B;
+    --rule:#2E352F;
+    --rule-soft:#242A25;
+    --jade:#42C3A2;
+    --jade-ink:#7FDCC0;
+    --jade-wash:rgba(66,195,162,.11);
+    --amber:#DCA55C;
+    --amber-wash:rgba(220,165,92,.12);
+    --code-bg:#0E110F;
+    --code-fg:#D4DCD6;
+    --code-dim:#77837A;
+    --shadow:0 1px 0 rgba(0,0,0,.3), 0 10px 30px -20px rgba(0,0,0,.9);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#151814;
+  --surface:#1C211D;
+  --surface-2:#252B26;
+  --ink:#E3E8E1;
+  --ink-2:#9AA39B;
+  --ink-3:#79837B;
+  --rule:#2E352F;
+  --rule-soft:#242A25;
+  --jade:#42C3A2;
+  --jade-ink:#7FDCC0;
+  --jade-wash:rgba(66,195,162,.11);
+  --amber:#DCA55C;
+  --amber-wash:rgba(220,165,92,.12);
+  --code-bg:#0E110F;
+  --code-fg:#D4DCD6;
+  --code-dim:#77837A;
+  --shadow:0 1px 0 rgba(0,0,0,.3), 0 10px 30px -20px rgba(0,0,0,.9);
+}
+
+/* ── base ─────────────────────────────────────────────────────────────── */
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{animation:none!important;transition:none!important}}
+body{
+  margin:0;
+  background:var(--ground);
+  color:var(--ink);
+  font-family:var(--font-serif);
+  font-size:var(--s-0);
+  line-height:1.66;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:var(--jade);text-decoration:none;border-bottom:1px solid color-mix(in srgb,var(--jade) 35%,transparent)}
+a:hover{border-bottom-color:var(--jade)}
+:focus-visible{outline:2px solid var(--jade);outline-offset:3px;border-radius:2px}
+
+/* ── shell ────────────────────────────────────────────────────────────── */
+.shell{max-width:1180px;margin:0 auto;padding:0 clamp(1.1rem,4vw,2.5rem)}
+.layout{display:grid;grid-template-columns:1fr;gap:3rem}
+@media (min-width:1080px){
+  .layout{grid-template-columns:226px minmax(0,1fr);gap:4rem;align-items:start}
+}
+
+/* ── rail ─────────────────────────────────────────────────────────────── */
+.rail{display:none}
+@media (min-width:1080px){
+  .rail{display:block;position:sticky;top:0;max-height:100vh;overflow-y:auto;padding:3.2rem 0 3rem;font-family:var(--font-mono)}
+  .rail::-webkit-scrollbar{width:6px}
+  .rail::-webkit-scrollbar-thumb{background:var(--rule);border-radius:3px}
+}
+.rail-head{font-size:.66rem;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3);margin:0 0 1rem;padding-left:.9rem}
+.rail-list{list-style:none;margin:0;padding:0;border-left:1px solid var(--rule)}
+.rail-list a{
+  display:block;padding:.34rem 0 .34rem .9rem;margin-left:-1px;
+  border-left:2px solid transparent;border-bottom:0;
+  font-size:.735rem;line-height:1.35;color:var(--ink-3);
+  transition:color .15s ease,border-color .15s ease;
+}
+.rail-list a:hover{color:var(--ink)}
+.rail-list a .n{opacity:.55;margin-right:.5em}
+.rail-list a[aria-current="true"]{color:var(--jade);border-left-color:var(--jade)}
+.rail-list a[aria-current="true"] .n{opacity:1}
+.rail-sub{
+  font-size:.63rem;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3);
+  margin:1.1rem 0 .45rem;padding-left:.9rem;border-top:1px solid var(--rule);padding-top:.85rem;
+  margin-left:-1px;
+}
+
+/* ── part divider ─────────────────────────────────────────────────────── */
+.part{
+  margin:5.5rem 0 0;border-top:2px solid var(--ink);padding-top:1rem;
+  display:flex;align-items:baseline;gap:0 1.1rem;flex-wrap:wrap;
+}
+.part .pn{
+  font-family:var(--font-mono);font-size:var(--s--1);letter-spacing:.19em;
+  text-transform:uppercase;color:var(--jade);
+}
+.part h2{
+  font-family:var(--font-mono);font-weight:600;
+  font-size:clamp(1.5rem,4vw,var(--s-4));letter-spacing:-.032em;line-height:1.1;margin:0;
+}
+.part p{flex-basis:100%;max-width:58ch;color:var(--ink-2);margin:.65rem 0 0;font-size:1.02rem}
+
+/* ── masthead ─────────────────────────────────────────────────────────── */
+.masthead{padding:clamp(3rem,9vh,6rem) 0 2.4rem}
+.eyebrow{
+  font-family:var(--font-mono);font-size:var(--s--1);letter-spacing:.19em;
+  text-transform:uppercase;color:var(--ink-3);margin:0 0 1.4rem;
+}
+.masthead h1{
+  font-family:var(--font-mono);font-weight:600;
+  font-size:clamp(2.1rem,6.2vw,var(--s-5));
+  line-height:1.03;letter-spacing:-.035em;text-wrap:balance;
+  margin:0 0 1.3rem;max-width:19ch;
+}
+.masthead h1 em{font-style:normal;color:var(--jade)}
+.standfirst{font-size:clamp(1.08rem,2.2vw,1.28rem);line-height:1.55;color:var(--ink-2);max-width:56ch;margin:0 0 2rem}
+.meta-row{
+  display:flex;flex-wrap:wrap;gap:.55rem 1.5rem;align-items:center;
+  font-family:var(--font-mono);font-size:var(--s--1);color:var(--ink-3);
+  border-top:1px solid var(--rule);padding-top:1rem;
+}
+.toggle{
+  margin-left:auto;font-family:var(--font-mono);font-size:var(--s--1);
+  background:transparent;border:1px solid var(--rule);color:var(--ink-2);
+  padding:.3rem .7rem;border-radius:2px;cursor:pointer;letter-spacing:.06em;
+}
+.toggle:hover{border-color:var(--jade);color:var(--jade)}
+
+/* ── sections ─────────────────────────────────────────────────────────── */
+main{padding-bottom:6rem}
+.sec{padding-top:3.4rem;scroll-margin-top:1.5rem}
+.sec > *{max-width:var(--col)}
+.sec-head{
+  display:flex;align-items:baseline;gap:.85rem;
+  border-top:1px solid var(--ink);padding-top:.75rem;margin:0 0 1.6rem;max-width:none;
+}
+.sec-head .n{font-family:var(--font-mono);font-size:var(--s--1);color:var(--jade);letter-spacing:.06em;flex:none;padding-top:.35rem}
+.sec-head h2{
+  font-family:var(--font-mono);font-weight:600;font-size:clamp(1.35rem,3.4vw,var(--s-3));
+  letter-spacing:-.028em;line-height:1.12;margin:0;text-wrap:balance;
+}
+h3{
+  font-family:var(--font-mono);font-weight:600;font-size:var(--s-1);
+  letter-spacing:-.015em;line-height:1.25;margin:2.4rem 0 .7rem;text-wrap:balance;
+}
+h4{
+  font-family:var(--font-mono);font-weight:600;font-size:var(--s-0);
+  letter-spacing:-.005em;margin:1.7rem 0 .5rem;color:var(--ink);
+}
+p{margin:0 0 1.05rem}
+.lede{font-size:var(--s-1);line-height:1.5;color:var(--ink-2)}
+strong{font-weight:600}
+em.term{font-style:normal;font-family:var(--font-mono);font-size:.92em;color:var(--jade-ink)}
+
+ul,ol{margin:0 0 1.15rem;padding-left:1.25rem}
+li{margin:0 0 .5rem}
+li::marker{color:var(--ink-3)}
+ul.tight li,ol.tight li{margin-bottom:.3rem}
+
+code{
+  font-family:var(--font-mono);font-size:.86em;
+  background:var(--jade-wash);color:var(--jade-ink);
+  padding:.1em .32em;border-radius:2px;
+  word-break:break-word;
+}
+
+/* ── code panels ──────────────────────────────────────────────────────── */
+figure.code{margin:1.5rem 0 1.7rem;max-width:none;border-radius:3px;overflow:hidden;box-shadow:var(--shadow)}
+figure.code figcaption{
+  font-family:var(--font-mono);font-size:var(--s--1);letter-spacing:.06em;
+  background:var(--code-bg);color:var(--code-dim);
+  padding:.55rem .95rem .1rem;border-bottom:0;
+  display:flex;justify-content:space-between;gap:1rem;
+}
+figure.code figcaption .tag{color:var(--code-dim);opacity:.7}
+figure.code pre{
+  margin:0;background:var(--code-bg);color:var(--code-fg);
+  padding:.85rem .95rem 1.05rem;overflow-x:auto;
+  font-family:var(--font-mono);font-size:.815rem;line-height:1.62;
+  tab-size:2;
+}
+figure.code code{background:none;color:inherit;padding:0;font-size:inherit}
+pre .c{color:var(--code-com);font-style:italic}
+pre .k{color:var(--code-key)}
+pre .s{color:var(--code-str)}
+pre .d{color:var(--code-dim)}
+
+/* ── tables ───────────────────────────────────────────────────────────── */
+.tablewrap{overflow-x:auto;margin:1.4rem 0 1.8rem;max-width:none;border:1px solid var(--rule);border-radius:3px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:.93rem;min-width:520px}
+th,td{text-align:left;padding:.62rem .85rem;border-bottom:1px solid var(--rule-soft);vertical-align:top}
+thead th{
+  font-family:var(--font-mono);font-size:var(--s--1);font-weight:600;
+  letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);
+  background:var(--surface-2);border-bottom:1px solid var(--rule);
+}
+tbody tr:last-child td{border-bottom:0}
+td code{font-size:.83em}
+table.nums td{font-variant-numeric:tabular-nums}
+
+/* ── callouts ─────────────────────────────────────────────────────────── */
+.note{
+  border-left:2px solid var(--jade);background:var(--jade-wash);
+  padding:.85rem 1.1rem;margin:1.4rem 0 1.6rem;border-radius:0 3px 3px 0;
+}
+.note.warn{border-left-color:var(--amber);background:var(--amber-wash)}
+.note p{margin:0}
+.note p + p{margin-top:.6rem}
+.note .label{
+  display:block;font-family:var(--font-mono);font-size:var(--s--1);
+  letter-spacing:.13em;text-transform:uppercase;color:var(--jade-ink);margin-bottom:.35rem;
+}
+.note.warn .label{color:var(--amber)}
+
+/* ── figures / svg ────────────────────────────────────────────────────── */
+figure.dia{margin:1.8rem 0 2rem;max-width:none}
+figure.dia .frame{overflow-x:auto;border:1px solid var(--rule);border-radius:3px;background:var(--surface);padding:1.1rem}
+figure.dia svg{display:block;width:100%;min-width:520px;height:auto}
+figure.dia figcaption{
+  font-family:var(--font-mono);font-size:var(--s--1);color:var(--ink-3);
+  margin-top:.6rem;line-height:1.45;
+}
+.svg-box{fill:var(--surface-2);stroke:var(--rule)}
+.svg-box-a{fill:var(--jade-wash);stroke:var(--jade)}
+.svg-line{stroke:var(--ink-3);fill:none}
+.svg-line-a{stroke:var(--jade);fill:none}
+.svg-dash{stroke:var(--ink-3);fill:none;stroke-dasharray:4 4}
+.svg-t{fill:var(--ink);font-family:var(--font-mono);font-size:12px}
+.svg-t-sm{fill:var(--ink-3);font-family:var(--font-mono);font-size:10.5px}
+.svg-t-a{fill:var(--jade-ink);font-family:var(--font-mono);font-size:11px}
+
+/* ── stack layers ─────────────────────────────────────────────────────── */
+.stack{list-style:none;margin:1.5rem 0 1.9rem;padding:0;display:flex;flex-direction:column;gap:2px;max-width:none}
+.stack li{
+  margin:0;display:grid;grid-template-columns:minmax(0,13rem) minmax(0,1fr);gap:.4rem 1.3rem;
+  background:var(--surface);border:1px solid var(--rule);padding:.7rem .95rem;
+}
+.stack li:first-child{border-radius:3px 3px 0 0}
+.stack li:last-child{border-radius:0 0 3px 3px}
+.stack .lname{font-family:var(--font-mono);font-size:.86rem;font-weight:600;letter-spacing:-.01em}
+.stack .lname span{display:block;font-weight:400;color:var(--ink-3);font-size:.75rem;letter-spacing:.05em;margin-top:.15rem}
+.stack .ldesc{font-size:.95rem;color:var(--ink-2);line-height:1.5}
+@media (max-width:620px){.stack li{grid-template-columns:1fr}}
+
+/* ── pattern grid ─────────────────────────────────────────────────────── */
+.pgrid{display:grid;gap:1rem;margin:1.6rem 0 2rem;max-width:none;grid-template-columns:repeat(auto-fit,minmax(238px,1fr))}
+.pcard{border:1px solid var(--rule);background:var(--surface);border-radius:3px;padding:.9rem .95rem 1rem;display:flex;flex-direction:column;gap:.55rem}
+.pcard h4{margin:0;font-size:.94rem}
+.pcard svg{display:block;width:100%;height:auto}
+.pcard p{margin:0;font-size:.88rem;line-height:1.5;color:var(--ink-2)}
+
+/* ── checklist ────────────────────────────────────────────────────────── */
+.check{list-style:none;margin:1.3rem 0 1.8rem;padding:0;max-width:none;
+  display:grid;gap:.1rem;grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+.check li{
+  margin:0;padding:.6rem .8rem .6rem 2.1rem;position:relative;
+  font-size:.94rem;line-height:1.45;border-bottom:1px solid var(--rule-soft);
+}
+.check li::before{
+  content:"";position:absolute;left:.75rem;top:.95rem;
+  width:8px;height:8px;border:1.5px solid var(--jade);border-radius:1px;
+}
+.check li b{font-weight:600;font-family:var(--font-mono);font-size:.88em}
+
+/* ── kv / spec sheet ──────────────────────────────────────────────────── */
+.spec{margin:1.3rem 0 1.7rem;max-width:none;border-top:1px solid var(--rule)}
+.spec div{display:grid;grid-template-columns:minmax(0,11rem) minmax(0,1fr);gap:.2rem 1.4rem;
+  padding:.6rem 0;border-bottom:1px solid var(--rule-soft)}
+.spec dt{font-family:var(--font-mono);font-size:.8rem;letter-spacing:.04em;color:var(--ink-3);margin:0}
+.spec dd{margin:0;font-size:.95rem;line-height:1.5}
+@media (max-width:620px){.spec div{grid-template-columns:1fr}}
+
+/* ── footer ───────────────────────────────────────────────────────────── */
+.endnote{
+  margin-top:4rem;border-top:1px solid var(--ink);padding-top:1rem;max-width:none;
+  font-family:var(--font-mono);font-size:var(--s--1);color:var(--ink-3);
+  display:flex;flex-wrap:wrap;gap:.5rem 2rem;
+}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" aria-hidden="true" style="position:absolute">
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="var(--ink-3)"/>
+    </marker>
+    <marker id="ara" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="var(--jade)"/>
+    </marker>
+  </defs>
+</svg>
+
+<div class="shell">
+<div class="layout">
+
+  <nav class="rail" aria-label="Sections">
+    <p class="rail-head">Trace</p>
+    <ul class="rail-list">
+      <li><a href="#s01"><span class="n">01</span>What agentic means</a></li>
+      <li><a href="#s02"><span class="n">02</span>The loop</a></li>
+      <li><a href="#s03"><span class="n">03</span>Anatomy</a></li>
+      <li><a href="#s04"><span class="n">04</span>Context engineering</a></li>
+      <li><a href="#s05"><span class="n">05</span>Tools</a></li>
+      <li><a href="#s06"><span class="n">06</span>Patterns</a></li>
+      <li><a href="#s07"><span class="n">07</span>Multi-agent</a></li>
+      <li><a href="#s08"><span class="n">08</span>Memory &amp; retrieval</a></li>
+      <li><a href="#s09"><span class="n">09</span>MCP</a></li>
+      <li><a href="#s10"><span class="n">10</span>Guardrails &amp; security</a></li>
+      <li><a href="#s11"><span class="n">11</span>Evaluation</a></li>
+      <li><a href="#s12"><span class="n">12</span>Observability &amp; cost</a></li>
+      <li><a href="#s13"><span class="n">13</span>Failure modes</a></li>
+      <li><a href="#s14"><span class="n">14</span>Landscape</a></li>
+    </ul>
+    <p class="rail-sub">Advanced</p>
+    <ul class="rail-list">
+      <li><a href="#s15"><span class="n">15</span>Test-time compute</a></li>
+      <li><a href="#s16"><span class="n">16</span>Structured output</a></li>
+      <li><a href="#s17"><span class="n">17</span>Code as the interface</a></li>
+      <li><a href="#s18"><span class="n">18</span>Durable execution</a></li>
+      <li><a href="#s19"><span class="n">19</span>Latency &amp; cost depth</a></li>
+      <li><a href="#s20"><span class="n">20</span>MCP at scale</a></li>
+      <li><a href="#s21"><span class="n">21</span>Capability security</a></li>
+      <li><a href="#s22"><span class="n">22</span>Improving over time</a></li>
+      <li><a href="#s23"><span class="n">23</span>Build order</a></li>
+    </ul>
+  </nav>
+
+  <div>
+  <header class="masthead">
+    <p class="eyebrow">Field guide · Agentic systems &amp; the Model Context Protocol</p>
+    <h1>The <em>agent</em> is just a loop with tools and a stop condition.</h1>
+    <p class="standfirst">Everything else — memory, planning, multi-agent, MCP, guardrails, evals — is engineering around that one fact. This is the working reference: what each piece does, when it earns its place, and what breaks in production.</p>
+    <div class="meta-row">
+      <span>23 sections · foundations, then depth</span>
+      <span>Read time ≈ 80 min</span>
+      <span>Ends in a build plan</span>
+      <button class="toggle" type="button" id="themeToggle" aria-label="Toggle colour theme">theme</button>
+    </div>
+  </header>
+
+  <main>
+
+  <!-- ═══ 01 ═══════════════════════════════════════════════════════════ -->
+  <section class="sec" id="s01">
+    <div class="sec-head"><span class="n">01</span><h2>What "agentic" actually means</h2></div>
+
+    <p class="lede">An LLM becomes an agent when it decides its own control flow. That is the whole distinction, and it is a spectrum, not a category.</p>
+
+    <p>In a normal LLM call, you write the steps: retrieve, then summarise, then format. The model fills in blanks inside a path you fixed. In an agentic system, the model chooses what happens next — which tool to call, whether to call one at all, whether it's finished. You wrote the space of possible actions; the model wrote the sequence.</p>
+
+    <p>The useful framing is <strong>who owns control flow</strong>:</p>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Control flow owner</th><th>Name</th><th>You get</th><th>You lose</th></tr></thead>
+        <tbody>
+          <tr><td>You, entirely</td><td>Pipeline / chain</td><td>Determinism, cheap testing, flat cost</td><td>Cannot handle inputs you didn't anticipate</td></tr>
+          <tr><td>You, with model-chosen branches</td><td>Workflow</td><td>Most of the determinism, some flexibility</td><td>Branch explosion if you keep adding cases</td></tr>
+          <tr><td>The model, inside your guardrails</td><td>Agent</td><td>Handles open-ended, unenumerable tasks</td><td>Variable cost, variable latency, harder to test</td></tr>
+          <tr><td>The model, including its own tools</td><td>Autonomous agent</td><td>Genuinely open-world capability</td><td>Real safety surface; needs sandboxing</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>The default engineering instinct should be to sit as far up that table as the task allows. Agency is a cost you pay for flexibility you actually need. A classification task does not need an agent. A "look at this failing build, figure out why, fix it" task cannot be anything else, because you cannot enumerate the branches in advance.</p>
+
+    <h3>The three properties that show up in every definition</h3>
+    <ul>
+      <li><strong>Goal-directedness</strong> — it is given an objective, not an instruction. "Make the tests pass," not "run pytest."</li>
+      <li><strong>Environment coupling</strong> — it can take actions that change the world and read the results back. Without tools, a model can only produce text about acting.</li>
+      <li><strong>Iteration until a stop condition</strong> — it runs more than once, and something decides when to halt. That "something" is one of the most under-designed parts of most systems.</li>
+    </ul>
+
+    <div class="note">
+      <span class="label">The honest test</span>
+      <p>If you can draw the full execution graph before running it, you built a workflow. If you can only draw the node types and the edges are decided at runtime, you built an agent. Both are legitimate. Only one needs the machinery in sections 10–13.</p>
+    </div>
+  </section>
+
+  <!-- ═══ 02 ═══════════════════════════════════════════════════════════ -->
+  <section class="sec" id="s02">
+    <div class="sec-head"><span class="n">02</span><h2>The loop</h2></div>
+
+    <p>Every agent framework you will ever read the source of reduces to this. Understanding it in raw form means you can debug any of them, and can decide when you don't need one.</p>
+
+    <figure class="dia">
+      <div class="frame">
+      <svg viewBox="0 0 880 250" role="img" aria-label="Agent loop: context feeds the model, which either calls a tool or stops; tool results append back into context.">
+        <rect class="svg-box-a" x="8" y="52" width="132" height="52" rx="3"/>
+        <text class="svg-t-a" x="74" y="74" text-anchor="middle">goal +</text>
+        <text class="svg-t-a" x="74" y="90" text-anchor="middle">context</text>
+
+        <line class="svg-line" x1="142" y1="78" x2="196" y2="78" marker-end="url(#ar)"/>
+
+        <rect class="svg-box" x="200" y="44" width="150" height="68" rx="3"/>
+        <text class="svg-t" x="275" y="70" text-anchor="middle">MODEL</text>
+        <text class="svg-t-sm" x="275" y="88" text-anchor="middle">decide next action</text>
+
+        <line class="svg-line" x1="352" y1="78" x2="406" y2="78" marker-end="url(#ar)"/>
+
+        <path class="svg-line" d="M410 78 L450 50 L490 78 L450 106 Z"/>
+        <text class="svg-t-sm" x="450" y="82" text-anchor="middle">done?</text>
+
+        <text class="svg-t-sm" x="452" y="38" text-anchor="middle">yes</text>
+        <line class="svg-line" x1="450" y1="48" x2="450" y2="26" marker-end="url(#ar)"/>
+        <line class="svg-line" x1="452" y1="22" x2="702" y2="22" marker-end="url(#ar)"/>
+        <rect class="svg-box-a" x="706" y="4" width="166" height="38" rx="3"/>
+        <text class="svg-t-a" x="789" y="28" text-anchor="middle">final answer</text>
+
+        <text class="svg-t-sm" x="516" y="70" text-anchor="middle">no</text>
+        <line class="svg-line" x1="492" y1="78" x2="546" y2="78" marker-end="url(#ar)"/>
+
+        <rect class="svg-box" x="550" y="44" width="140" height="68" rx="3"/>
+        <text class="svg-t" x="620" y="70" text-anchor="middle">TOOL CALL</text>
+        <text class="svg-t-sm" x="620" y="88" text-anchor="middle">name + args</text>
+
+        <line class="svg-line" x1="692" y1="78" x2="736" y2="78" marker-end="url(#ar)"/>
+
+        <rect class="svg-box" x="740" y="44" width="132" height="68" rx="3"/>
+        <text class="svg-t" x="806" y="70" text-anchor="middle">WORLD</text>
+        <text class="svg-t-sm" x="806" y="88" text-anchor="middle">api · db · fs · shell</text>
+
+        <path class="svg-line-a" d="M806 114 L806 168 L74 168 L74 106" marker-end="url(#ara)"/>
+        <rect x="330" y="152" width="220" height="26" rx="3" fill="var(--surface)" stroke="none"/>
+        <text class="svg-t-a" x="440" y="170" text-anchor="middle">append observation to context</text>
+
+        <line class="svg-dash" x1="8" y1="206" x2="872" y2="206"/>
+        <text class="svg-t-sm" x="8" y="228">every cycle re-reads the entire accumulated context — this is why context is the scarce resource, not compute</text>
+      </svg>
+      </div>
+      <figcaption>Fig. 1 — One turn of the loop. The model does not remember the last turn; it re-reads it.</figcaption>
+    </figure>
+
+    <p>Written out, with no framework:</p>
+
+    <figure class="code">
+      <figcaption><span>agent.py</span><span class="tag">the entire idea</span></figcaption>
+<pre><code><span class="k">def</span> run(goal, tools, max_steps=<span class="s">12</span>):
+    messages = [
+        {<span class="s">"role"</span>: <span class="s">"system"</span>, <span class="s">"content"</span>: SYSTEM_PROMPT},
+        {<span class="s">"role"</span>: <span class="s">"user"</span>,   <span class="s">"content"</span>: goal},
+    ]
+
+    <span class="k">for</span> step <span class="k">in</span> range(max_steps):
+        reply = llm(messages, tools=[t.schema <span class="k">for</span> t <span class="k">in</span> tools])
+        messages.append(reply)
+
+        <span class="c"># stop condition #1: the model produced no tool calls</span>
+        <span class="k">if</span> <span class="k">not</span> reply.tool_calls:
+            <span class="k">return</span> reply.content
+
+        <span class="c"># the model may request several; run them, feed every result back</span>
+        <span class="k">for</span> call <span class="k">in</span> reply.tool_calls:
+            <span class="k">try</span>:
+                result = tools[call.name].run(**call.args)
+            <span class="k">except</span> Exception <span class="k">as</span> e:
+                <span class="c"># errors are observations, not crashes — this is load-bearing</span>
+                result = <span class="s">f"ERROR: {e}. Fix the arguments and retry."</span>
+            messages.append({
+                <span class="s">"role"</span>: <span class="s">"tool"</span>,
+                <span class="s">"tool_call_id"</span>: call.id,
+                <span class="s">"content"</span>: truncate(result, <span class="s">4000</span>),
+            })
+
+    <span class="c"># stop condition #2: the budget. never omit this.</span>
+    <span class="k">return</span> <span class="s">"Step budget exhausted without reaching a conclusion."</span></code></pre>
+    </figure>
+
+    <p>Four things in that snippet are where real systems fail, and they are worth naming individually.</p>
+
+    <h4>Errors must be fed back, not raised</h4>
+    <p>A tool that throws and kills the loop turns a recoverable mistake into a failed run. A tool that returns <code>ERROR: unknown column 'usr_id'. Available: user_id, ...</code> lets the model self-correct on the next turn. Tool error messages are prompts. Write them like prompts — say what was wrong <em>and</em> what to do about it.</p>
+
+    <h4>Truncation is a policy decision</h4>
+    <p>A tool returning 200 KB of JSON will blow the context window and cost more than the rest of the run combined. Truncate, summarise, or write it to a file and return the path. Returning a handle instead of a payload is one of the highest-leverage moves in agent design.</p>
+
+    <h4>The step budget is a safety device</h4>
+    <p>Without <code>max_steps</code>, a confused model will call the same tool forever and bill you for it. Budget in three currencies at once: steps, tokens, and wall-clock. Whichever runs out first should stop the run and say so honestly.</p>
+
+    <h4>The stop condition is a design surface</h4>
+    <p>"No tool calls" is the crude version. Real systems add: an explicit <code>submit_answer</code> tool the model must call to finish; a verifier that checks the result and can reject it; a human approval gate. Making finishing an explicit action rather than an absence of action makes the trace far easier to read.</p>
+
+    <div class="note">
+      <span class="label">ReAct, without the mystique</span>
+      <p>The pattern above is ReAct (Yao et al.) — interleaving <em>reasoning</em> traces with <em>acting</em>. When it was published, models needed to be prompted into "Thought: … Action: … Observation: …" text scaffolding. Modern models have tool calling trained in, and reasoning models produce the thinking natively. You almost never need to hand-build the ReAct text format any more; you need to understand it because every framework's internals are still shaped like it.</p>
+    </div>
+  </section>
+
+  <!-- ═══ 03 ═══════════════════════════════════════════════════════════ -->
+  <section class="sec" id="s03">
+    <div class="sec-head"><span class="n">03</span><h2>Anatomy: the six parts</h2></div>
+
+    <p>Every agentic system, from a 40-line script to a platform, has these six layers. Naming them is how you diagnose a problem — nearly every bug belongs to exactly one.</p>
+
+    <ul class="stack">
+      <li>
+        <div class="lname">Model<span>the reasoner</span></div>
+        <div class="ldesc">Chooses actions. Its tool-calling reliability, instruction adherence, and long-context behaviour set the ceiling for everything above it. Tier deliberately: a strong model for planning, a cheap fast one for extraction and classification inside tool implementations.</div>
+      </li>
+      <li>
+        <div class="lname">Context<span>the working memory</span></div>
+        <div class="ldesc">System prompt, task, history, retrieved documents, tool results. Finite, expensive, and degrades as it fills. Managing it is the discipline in §04 — the single highest-leverage area in practice.</div>
+      </li>
+      <li>
+        <div class="lname">Tools<span>the hands</span></div>
+        <div class="ldesc">The action space. Each is a name, a JSON Schema, a description the model reads, and an implementation. The description is prompt engineering; the schema is API design; the implementation is ordinary software with ordinary bugs.</div>
+      </li>
+      <li>
+        <div class="lname">Memory<span>state across turns</span></div>
+        <div class="ldesc">Anything that survives beyond the current context window: conversation summaries, learned user facts, task scratchpads, vector stores. Distinct from context — memory is storage, context is what you loaded from it this turn.</div>
+      </li>
+      <li>
+        <div class="lname">Orchestration<span>the control plane</span></div>
+        <div class="ldesc">The loop itself: routing, retries, parallel branches, sub-agents, checkpoints, human approval gates, resumability. This is where LangGraph, the Agents SDKs, and hand-rolled state machines live.</div>
+      </li>
+      <li>
+        <div class="lname">Runtime<span>where it actually runs</span></div>
+        <div class="ldesc">Process model, sandboxing, secrets, concurrency, persistence, streaming to a UI, cancellation. The part demos skip and production cannot.</div>
+      </li>
+    </ul>
+
+    <div class="note">
+      <span class="label">Diagnostic shortcut</span>
+      <p>Wrong tool chosen → context or tool <em>descriptions</em>. Right tool, wrong arguments → schema too loose, or missing examples. Right call, wrong result → implementation bug, not an AI problem. Loops forever → stop condition and budget. Forgets what it did → memory layer. Falls over under load → runtime.</p>
+    </div>
+  </section>
+
+  <!-- ═══ 04 ═══════════════════════════════════════════════════════════ -->
+  <section class="sec" id="s04">
+    <div class="sec-head"><span class="n">04</span><h2>Context engineering</h2></div>
+
+    <p class="lede">Prompt engineering was about wording one message. Context engineering is about curating the whole set of tokens the model sees at each step — and it is where most agent quality comes from.</p>
+
+    <p>The loop re-sends everything every turn. So context has three properties that drive design: it is <strong>finite</strong>, it is <strong>paid for repeatedly</strong>, and its quality <strong>degrades as it grows</strong>. Models attend less reliably to material buried in the middle of a very long context, and irrelevant material actively distracts — more context is not more capability.</p>
+
+    <h3>Budget the window explicitly</h3>
+    <p>Write down, for your agent, roughly what each region costs. A worked example for a 200 K window:</p>
+
+    <div class="tablewrap">
+      <table class="nums">
+        <thead><tr><th>Region</th><th>Budget</th><th>Policy when it overflows</th></tr></thead>
+        <tbody>
+          <tr><td>System prompt + tool schemas</td><td>~5 K</td><td>Fixed. If it grows past this, you have too many tools (§05).</td></tr>
+          <tr><td>Task / user request</td><td>~2 K</td><td>Never trimmed.</td></tr>
+          <tr><td>Retrieved knowledge</td><td>~20 K</td><td>Re-rank, keep top-k, drop the rest.</td></tr>
+          <tr><td>Working history (turns + tool results)</td><td>~120 K</td><td>Compact oldest-first at ~80% full.</td></tr>
+          <tr><td>Headroom for the reply</td><td>~30 K</td><td>Reserved. Hitting the wall mid-answer is a bug.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>The four techniques</h3>
+
+    <h4>1 · Compaction</h4>
+    <p>At a threshold, replace the oldest span of history with a model-written summary that explicitly preserves decisions made, facts learned, files touched, and open questions — and explicitly drops raw tool output. Test your compaction step; a bad summariser silently deletes the one detail the task depended on. Keep the most recent turns verbatim; recency matters most.</p>
+
+    <h4>2 · Externalisation (write it down)</h4>
+    <p>Give the agent a scratchpad — a file, a note tool, a structured plan object. Long-horizon work should persist state outside the window, so a compaction or restart doesn't lose the thread. "Write the plan to <code>plan.md</code>, update it as you go" is a startlingly effective instruction.</p>
+
+    <h4>3 · Just-in-time retrieval</h4>
+    <p>Don't pre-load everything the agent might need. Give it a search tool and let it pull what it needs when it needs it. This mirrors how a person works — you don't read the whole codebase, you grep. It trades a little latency for a very large context saving, and keeps what's in the window relevant.</p>
+
+    <h4>4 · Sub-agent isolation</h4>
+    <p>Spawn a sub-agent for a bounded piece of work; it burns its own window on exploration and returns a condensed result. The parent's context stays clean. This is the strongest argument for multi-agent designs (§07) — not "specialists collaborate," but <em>context isolation</em>.</p>
+
+    <h3>Writing the system prompt</h3>
+    <p>Aim for the smallest set of instructions that fully specifies the behaviour — but no smaller. Two failure modes bracket the right answer: brittle hard-coded if-else logic that shatters on the first unanticipated input, and vague "be helpful" prompts that assume shared context the model doesn't have.</p>
+    <ul>
+      <li><strong>Role and scope</strong> — what it is, what it must not attempt.</li>
+      <li><strong>Tool policy</strong> — when to prefer which tool; what to do when a tool fails; when to ask instead of guess.</li>
+      <li><strong>Stop criteria</strong> — what "done" looks like, in observable terms.</li>
+      <li><strong>Output contract</strong> — exact shape of the final answer.</li>
+      <li><strong>A few real examples</strong> — canonical, diverse, not an exhaustive rulebook.</li>
+    </ul>
+    <p>Structure it with headings or tags (<code>&lt;tools&gt;</code>, <code>&lt;rules&gt;</code>, <code>&lt;output_format&gt;</code>). It parses better and, more importantly, it makes the prompt maintainable by a human six months later.</p>
+
+    <div class="note warn">
+      <span class="label">Cache-aware ordering</span>
+      <p>Prompt caching keys on a stable prefix. Put everything invariant first — system prompt, tool schemas, static policy — and everything that changes per turn last. A timestamp or a session id near the top silently invalidates the cache on every single call and can multiply your bill.</p>
+    </div>
+  </section>
+
+  <!-- ═══ 05 ═══════════════════════════════════════════════════════════ -->
+  <section class="sec" id="s05">
+    <div class="sec-head"><span class="n">05</span><h2>Tools: the real API design problem</h2></div>
+
+    <p>A tool is four things, and people usually only take one of them seriously:</p>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Part</th><th>Read by</th><th>Discipline it belongs to</th></tr></thead>
+        <tbody>
+          <tr><td>Name</td><td>Model</td><td>Naming — unambiguous, verb-first, no overlap</td></tr>
+          <tr><td>Description</td><td>Model</td><td>Prompt engineering — when to use, when <em>not</em> to</td></tr>
+          <tr><td>Input schema</td><td>Model + validator</td><td>API design — constrain hard, enums over free strings</td></tr>
+          <tr><td>Implementation</td><td>Nobody, until it breaks</td><td>Normal software engineering</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <figure class="code">
+      <figcaption><span>tool schema</span><span class="tag">JSON Schema, model-facing</span></figcaption>
+<pre><code>{
+  <span class="k">"name"</span>: <span class="s">"search_orders"</span>,
+  <span class="k">"description"</span>: <span class="s">"Find orders for one customer within a date range. Use this before answering any question about order status, refunds, or shipping. Do NOT use it to look up a customer profile — use get_customer for that. Returns at most 50 orders, newest first."</span>,
+  <span class="k">"input_schema"</span>: {
+    <span class="k">"type"</span>: <span class="s">"object"</span>,
+    <span class="k">"properties"</span>: {
+      <span class="k">"customer_id"</span>: {<span class="k">"type"</span>: <span class="s">"string"</span>, <span class="k">"pattern"</span>: <span class="s">"^cus_[a-zA-Z0-9]{8,}$"</span>},
+      <span class="k">"status"</span>:      {<span class="k">"type"</span>: <span class="s">"string"</span>,
+                       <span class="k">"enum"</span>: [<span class="s">"pending"</span>,<span class="s">"shipped"</span>,<span class="s">"delivered"</span>,<span class="s">"refunded"</span>]},
+      <span class="k">"since"</span>:       {<span class="k">"type"</span>: <span class="s">"string"</span>, <span class="k">"format"</span>: <span class="s">"date"</span>,
+                       <span class="k">"description"</span>: <span class="s">"ISO date, inclusive. Defaults to 90 days ago."</span>}
+    },
+    <span class="k">"required"</span>: [<span class="s">"customer_id"</span>]
+  }
+}</code></pre>
+    </figure>
+
+    <h3>Rules that hold up</h3>
+    <ul>
+      <li><strong>Design for the model, not for your database.</strong> Don't expose <code>execute_sql</code> and hope. Expose the three questions people actually ask. Every degree of freedom you hand the model is a degree of freedom it can get wrong.</li>
+      <li><strong>Make wrong calls unrepresentable.</strong> Enums, patterns, ranges, required fields. A schema violation caught by the validator costs one cheap retry; a semantically wrong call that succeeds costs a wrong answer.</li>
+      <li><strong>Return what helps the next decision.</strong> Not the raw API envelope — the fields that matter, plus a one-line summary if the payload is large. Consider returning a reference (<code>"wrote 4,213 rows to /tmp/q1.csv"</code>) instead of the data.</li>
+      <li><strong>Errors are instructions.</strong> <code>"ERROR: date range exceeds 1 year. Narrow `since` and retry."</code> beats a stack trace by a wide margin.</li>
+      <li><strong>Flag the dangerous ones.</strong> Mark tools read-only vs destructive vs idempotent, and let the runtime — not the model — enforce approval on the destructive ones.</li>
+      <li><strong>Keep the set small.</strong> Somewhere past a couple of dozen tools, selection accuracy drops and schemas eat the window. Fixes: namespace them, split across sub-agents, or add a discovery tool that surfaces only the relevant subset.</li>
+      <li><strong>Parallelise the independent ones.</strong> Modern models emit several tool calls per turn. Executing them concurrently is usually free latency.</li>
+      <li><strong>Idempotency keys on writes.</strong> Agents retry. Retries duplicate orders, emails, and payments unless the tool is idempotent.</li>
+    </ul>
+
+    <div class="note">
+      <span class="label">The cheapest quality win</span>
+      <p>Read your own tool descriptions as if you were the model and knew nothing else about the system. Most "the model is dumb" bugs are a description that never said when to use the tool, or two tools whose descriptions overlap. Fixing wording is faster than fixing anything else in the stack.</p>
+    </div>
+  </section>
+
+  <!-- ═══ 06 ═══════════════════════════════════════════════════════════ -->
+  <section class="sec" id="s06">
+    <div class="sec-head"><span class="n">06</span><h2>Patterns worth knowing</h2></div>
+
+    <p>These are the composable shapes. The first five are workflows — you own the control flow. The sixth is the agent. Most good production systems are workflows with one agentic node, not agents all the way down.</p>
+
+    <div class="pgrid">
+      <div class="pcard">
+        <h4>Prompt chaining</h4>
+        <svg viewBox="0 0 240 60" aria-hidden="true">
+          <rect class="svg-box" x="4" y="18" width="52" height="26" rx="2"/>
+          <line class="svg-line" x1="58" y1="31" x2="80" y2="31" marker-end="url(#ar)"/>
+          <rect class="svg-box" x="84" y="18" width="52" height="26" rx="2"/>
+          <line class="svg-line" x1="138" y1="31" x2="160" y2="31" marker-end="url(#ar)"/>
+          <rect class="svg-box" x="164" y="18" width="52" height="26" rx="2"/>
+          <line class="svg-dash" x1="110" y1="12" x2="110" y2="4"/>
+          <text class="svg-t-sm" x="112" y="10">gate</text>
+        </svg>
+        <p>Fixed steps, each on the last one's output, with optional programmatic gates between. Use when the task decomposes cleanly. Trades latency for accuracy per step.</p>
+      </div>
+
+      <div class="pcard">
+        <h4>Routing</h4>
+        <svg viewBox="0 0 240 60" aria-hidden="true">
+          <rect class="svg-box-a" x="4" y="18" width="56" height="26" rx="2"/>
+          <text class="svg-t-sm" x="32" y="35" text-anchor="middle">classify</text>
+          <line class="svg-line" x1="62" y1="31" x2="96" y2="12" marker-end="url(#ar)"/>
+          <line class="svg-line" x1="62" y1="31" x2="96" y2="31" marker-end="url(#ar)"/>
+          <line class="svg-line" x1="62" y1="31" x2="96" y2="50" marker-end="url(#ar)"/>
+          <rect class="svg-box" x="100" y="2" width="60" height="20" rx="2"/>
+          <rect class="svg-box" x="100" y="21" width="60" height="20" rx="2"/>
+          <rect class="svg-box" x="100" y="40" width="60" height="20" rx="2"/>
+        </svg>
+        <p>Classify first, then dispatch to a specialised prompt or a cheaper model. Lets you optimise each path separately instead of writing one prompt that hedges across all of them.</p>
+      </div>
+
+      <div class="pcard">
+        <h4>Parallelisation</h4>
+        <svg viewBox="0 0 240 60" aria-hidden="true">
+          <rect class="svg-box" x="4" y="18" width="40" height="26" rx="2"/>
+          <line class="svg-line" x1="46" y1="31" x2="76" y2="12" marker-end="url(#ar)"/>
+          <line class="svg-line" x1="46" y1="31" x2="76" y2="31" marker-end="url(#ar)"/>
+          <line class="svg-line" x1="46" y1="31" x2="76" y2="50" marker-end="url(#ar)"/>
+          <rect class="svg-box" x="80" y="2" width="52" height="20" rx="2"/>
+          <rect class="svg-box" x="80" y="21" width="52" height="20" rx="2"/>
+          <rect class="svg-box" x="80" y="40" width="52" height="20" rx="2"/>
+          <line class="svg-line" x1="134" y1="12" x2="164" y2="31" marker-end="url(#ar)"/>
+          <line class="svg-line" x1="134" y1="31" x2="164" y2="31" marker-end="url(#ar)"/>
+          <line class="svg-line" x1="134" y1="50" x2="164" y2="31" marker-end="url(#ar)"/>
+          <rect class="svg-box-a" x="168" y="18" width="66" height="26" rx="2"/>
+          <text class="svg-t-sm" x="201" y="35" text-anchor="middle">aggregate</text>
+        </svg>
+        <p>Two flavours. <em>Sectioning</em>: split independent subtasks, run concurrently, merge. <em>Voting</em>: run the same task N times and take consensus — buys reliability on judgement calls.</p>
+      </div>
+
+      <div class="pcard">
+        <h4>Orchestrator–workers</h4>
+        <svg viewBox="0 0 240 60" aria-hidden="true">
+          <rect class="svg-box-a" x="86" y="2" width="68" height="22" rx="2"/>
+          <text class="svg-t-sm" x="120" y="17" text-anchor="middle">orchestrator</text>
+          <line class="svg-line" x1="100" y1="26" x2="40" y2="42" marker-end="url(#ar)"/>
+          <line class="svg-line" x1="120" y1="26" x2="120" y2="42" marker-end="url(#ar)"/>
+          <line class="svg-line" x1="140" y1="26" x2="200" y2="42" marker-end="url(#ar)"/>
+          <rect class="svg-box" x="10" y="42" width="58" height="18" rx="2"/>
+          <rect class="svg-box" x="92" y="42" width="56" height="18" rx="2"/>
+          <rect class="svg-box" x="172" y="42" width="58" height="18" rx="2"/>
+        </svg>
+        <p>Like parallelisation, except the subtasks are <em>decided at runtime</em> rather than predefined. The right shape when you can't know in advance how many pieces the work has.</p>
+      </div>
+
+      <div class="pcard">
+        <h4>Evaluator–optimiser</h4>
+        <svg viewBox="0 0 240 60" aria-hidden="true">
+          <rect class="svg-box" x="20" y="18" width="76" height="26" rx="2"/>
+          <text class="svg-t-sm" x="58" y="35" text-anchor="middle">generate</text>
+          <line class="svg-line" x1="98" y1="26" x2="138" y2="26" marker-end="url(#ar)"/>
+          <rect class="svg-box-a" x="142" y="18" width="78" height="26" rx="2"/>
+          <text class="svg-t-sm" x="181" y="35" text-anchor="middle">critique</text>
+          <path class="svg-line-a" d="M181 46 L181 56 L58 56 L58 46" marker-end="url(#ara)"/>
+        </svg>
+        <p>One model produces, another critiques against explicit criteria, loop until it passes or the budget runs out. Works when you can articulate what "better" means — translation, code against tests, writing to a rubric.</p>
+      </div>
+
+      <div class="pcard">
+        <h4>Autonomous agent</h4>
+        <svg viewBox="0 0 240 60" aria-hidden="true">
+          <rect class="svg-box-a" x="70" y="16" width="64" height="28" rx="2"/>
+          <text class="svg-t-sm" x="102" y="34" text-anchor="middle">agent</text>
+          <rect class="svg-box" x="170" y="16" width="62" height="28" rx="2"/>
+          <text class="svg-t-sm" x="201" y="34" text-anchor="middle">env</text>
+          <line class="svg-line-a" x1="136" y1="24" x2="166" y2="24" marker-end="url(#ara)"/>
+          <line class="svg-line" x1="166" y1="37" x2="136" y2="37" marker-end="url(#ar)"/>
+          <line class="svg-line" x1="8" y1="30" x2="66" y2="30" marker-end="url(#ar)"/>
+          <text class="svg-t-sm" x="8" y="20">goal</text>
+          <text class="svg-t-sm" x="70" y="58">+ human checkpoint</text>
+        </svg>
+        <p>§02's loop, unbounded. Use when steps can't be predicted and you can verify results. Cost and latency scale with autonomy, so put a checkpoint at every irreversible action.</p>
+      </div>
+    </div>
+
+    <h3>Two more you'll reach for</h3>
+    <p><strong>Plan-and-execute</strong> — produce an explicit plan first, then execute steps against it, re-planning when reality disagrees. Makes long runs legible and lets a human approve the plan before any work happens. The failure mode is a plan written before the agent knows enough to write it; always allow re-planning.</p>
+    <p><strong>Reflection</strong> — after a failure, have the model write down <em>why</em> it failed and carry that note into the retry. Cheap, and it converts a repeated identical failure into a genuine second attempt.</p>
+
+    <div class="note">
+      <span class="label">Order of escalation</span>
+      <p>Single call → single call with tools → chain → route → orchestrator-workers → autonomous agent. Move one step down only when you've watched the current level fail on real inputs. Complexity added speculatively is complexity you will debug later.</p>
+    </div>
+  </section>
+
+  <!-- ═══ 07 ═══════════════════════════════════════════════════════════ -->
+  <section class="sec" id="s07">
+    <div class="sec-head"><span class="n">07</span><h2>Multi-agent, honestly</h2></div>
+
+    <p>Multi-agent is oversold. The real justification is narrow but genuine: <strong>context isolation</strong>. A sub-agent can burn 100 K tokens exploring a dead end and hand back a 500-token answer. The parent never sees the mess. That is a real architectural win and it is mostly the only one.</p>
+
+    <h3>When it genuinely helps</h3>
+    <ul class="tight">
+      <li>Wide parallel search — many independent lines of investigation, results condensed.</li>
+      <li>Hard boundaries — a sub-agent with strictly fewer tools and narrower permissions.</li>
+      <li>Adversarial review — a critic that never saw the author's reasoning gives an honest second opinion.</li>
+      <li>Genuinely different context needs — one agent needs the schema, another needs the style guide, neither needs both.</li>
+    </ul>
+
+    <h3>When it hurts</h3>
+    <ul class="tight">
+      <li><strong>Shared mutable state.</strong> Agents editing the same files or rows in parallel produce conflicts no framework resolves for you. Serialise writes or isolate workspaces.</li>
+      <li><strong>Decisions that need full context.</strong> If a sub-agent needs everything the parent knows to decide correctly, splitting just adds a lossy hop.</li>
+      <li><strong>Cost.</strong> N agents means roughly N times the tokens, plus coordination overhead. Confirm a single agent actually failed first.</li>
+      <li><strong>Debuggability.</strong> One trace is readable. Twelve interleaved traces are not, unless you built for it.</li>
+    </ul>
+
+    <p>Two coordination shapes cover almost everything. <strong>Supervisor</strong>: one orchestrator owns the goal and delegates; workers report back and never talk to each other. Predictable, easy to trace, and the default. <strong>Handoff</strong>: control transfers between peers, each fully owning the conversation while it holds it — natural for staged flows like triage → specialist → billing, but you must define exactly what state travels with the handoff.</p>
+
+    <div class="note warn">
+      <span class="label">Write the contract down</span>
+      <p>The most common multi-agent bug is an underspecified sub-agent brief. The parent says "research the auth system"; the sub-agent returns three paragraphs of prose when the parent needed a list of file paths. Specify the task, the tools available, the budget, and the exact return shape — a schema, not a vibe.</p>
+    </div>
+  </section>
+
+  <!-- ═══ 08 ═══════════════════════════════════════════════════════════ -->
+  <section class="sec" id="s08">
+    <div class="sec-head"><span class="n">08</span><h2>Memory and retrieval</h2></div>
+
+    <p>Context is what's in the window now. Memory is everything that outlives it. Four kinds, with different storage and different retrieval:</p>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Kind</th><th>Holds</th><th>Typical store</th><th>Loaded</th></tr></thead>
+        <tbody>
+          <tr><td>Working</td><td>This task's scratchpad, plan, intermediate results</td><td>A file, or a field on the run state</td><td>Every turn</td></tr>
+          <tr><td>Episodic</td><td>What happened in past sessions</td><td>Summaries in a DB, keyed by user/thread</td><td>At session start, or on demand</td></tr>
+          <tr><td>Semantic</td><td>Durable facts — preferences, entities, domain knowledge</td><td>Key–value or vector store</td><td>Retrieved by relevance</td></tr>
+          <tr><td>Procedural</td><td>How to do things — learned rules, corrections</td><td>Versioned files folded into the system prompt</td><td>Always, or per-domain</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>The hard part isn't writing memory, it's <strong>invalidation</strong>. A stale preference is worse than no preference. Timestamp everything, prefer the most recent contradicting fact, let the user see and delete what's stored, and don't write a memory from a single ambiguous utterance.</p>
+
+    <h3>RAG, in one paragraph</h3>
+    <p>Chunk documents with overlap, embed, store, then at query time embed the query, retrieve top-k, and put the results in context. What actually moves quality, in rough order: <strong>chunking that respects document structure</strong> (headings, sections — not fixed character counts); <strong>hybrid search</strong> (BM25 keyword + vector, fused) because pure vector search misses exact identifiers and rare terms; <strong>a re-ranker</strong> over a wide first-pass retrieval; and <strong>metadata filtering</strong> so you search the right subset at all. Embedding-model choice matters less than any of these.</p>
+
+    <p>In an agentic system, prefer giving the model a <em>search tool</em> over stuffing retrieved chunks into the prompt. It can then query repeatedly, refine terms after seeing results, and stop when it has enough — which is exactly the behaviour you want, and it keeps the window clean (§04).</p>
+
+    <div class="note">
+      <span class="label">Always carry provenance</span>
+      <p>Every retrieved chunk should arrive with its source id and location. Without it the agent cannot cite, you cannot audit, and "where did that come from?" becomes unanswerable. Retrieval without provenance is a hallucination with extra steps.</p>
+    </div>
+  </section>
+
+  <!-- ═══ 09 ═══════════════════════════════════════════════════════════ -->
+  <section class="sec" id="s09">
+    <div class="sec-head"><span class="n">09</span><h2>MCP — the protocol layer</h2></div>
+
+    <p class="lede">The Model Context Protocol is an open standard for connecting models to tools, data, and prompts. It turns an M×N integration problem into M+N.</p>
+
+    <p>Without it, every agent framework writes its own connector for every system: your LangGraph agent needs a Postgres tool, your IDE assistant needs a different Postgres tool, your internal chatbot needs a third. With MCP, you write one Postgres <em>server</em> and every MCP-speaking host can use it. The common analogy — "USB-C for AI applications" — is accurate about the intent: one connector shape, many devices on both sides.</p>
+
+    <h3>Architecture</h3>
+
+    <figure class="dia">
+      <div class="frame">
+      <svg viewBox="0 0 880 300" role="img" aria-label="MCP architecture: a host application contains several clients, each with a one-to-one connection to a server, and each server fronts a data source.">
+        <rect x="8" y="30" width="300" height="230" rx="4" class="svg-box" fill="none" stroke-dasharray="5 4"/>
+        <text class="svg-t" x="24" y="52">HOST</text>
+        <text class="svg-t-sm" x="24" y="70">IDE · chat app · your agent runtime</text>
+        <text class="svg-t-sm" x="24" y="86">owns the model, the loop, and the user</text>
+
+        <rect class="svg-box-a" x="176" y="100" width="116" height="40" rx="3"/>
+        <text class="svg-t-a" x="234" y="125" text-anchor="middle">client A</text>
+        <rect class="svg-box-a" x="176" y="152" width="116" height="40" rx="3"/>
+        <text class="svg-t-a" x="234" y="177" text-anchor="middle">client B</text>
+        <rect class="svg-box-a" x="176" y="204" width="116" height="40" rx="3"/>
+        <text class="svg-t-a" x="234" y="229" text-anchor="middle">client C</text>
+        <text class="svg-t-sm" x="24" y="126">one client per</text>
+        <text class="svg-t-sm" x="24" y="142">server, 1:1,</text>
+        <text class="svg-t-sm" x="24" y="158">isolated session</text>
+
+        <line class="svg-line-a" x1="294" y1="120" x2="486" y2="120" marker-end="url(#ara)" marker-start="url(#ara)"/>
+        <line class="svg-line-a" x1="294" y1="172" x2="486" y2="172" marker-end="url(#ara)" marker-start="url(#ara)"/>
+        <line class="svg-line-a" x1="294" y1="224" x2="486" y2="224" marker-end="url(#ara)" marker-start="url(#ara)"/>
+        <rect x="330" y="106" width="120" height="18" fill="var(--surface)" stroke="none"/>
+        <text class="svg-t-sm" x="390" y="119" text-anchor="middle">stdio</text>
+        <rect x="322" y="158" width="136" height="18" fill="var(--surface)" stroke="none"/>
+        <text class="svg-t-sm" x="390" y="171" text-anchor="middle">streamable http</text>
+        <rect x="330" y="210" width="120" height="18" fill="var(--surface)" stroke="none"/>
+        <text class="svg-t-sm" x="390" y="223" text-anchor="middle">stdio</text>
+        <text class="svg-t-sm" x="330" y="88">JSON-RPC 2.0 messages</text>
+
+        <rect class="svg-box" x="490" y="100" width="150" height="40" rx="3"/>
+        <text class="svg-t" x="565" y="125" text-anchor="middle">server: files</text>
+        <rect class="svg-box" x="490" y="152" width="150" height="40" rx="3"/>
+        <text class="svg-t" x="565" y="177" text-anchor="middle">server: postgres</text>
+        <rect class="svg-box" x="490" y="204" width="150" height="40" rx="3"/>
+        <text class="svg-t" x="565" y="229" text-anchor="middle">server: jira</text>
+
+        <line class="svg-line" x1="642" y1="120" x2="712" y2="120" marker-end="url(#ar)"/>
+        <line class="svg-line" x1="642" y1="172" x2="712" y2="172" marker-end="url(#ar)"/>
+        <line class="svg-line" x1="642" y1="224" x2="712" y2="224" marker-end="url(#ar)"/>
+        <text class="svg-t-sm" x="716" y="124">local disk</text>
+        <text class="svg-t-sm" x="716" y="176">db over the network</text>
+        <text class="svg-t-sm" x="716" y="228">remote SaaS API</text>
+
+        <text class="svg-t-sm" x="8" y="288">the host is the only component that talks to the model — servers never see your API key, and never see each other</text>
+      </svg>
+      </div>
+      <figcaption>Fig. 2 — Host, clients, servers. The 1:1 client↔server pairing is the isolation boundary.</figcaption>
+    </figure>
+
+    <dl class="spec">
+      <div><dt>Host</dt><dd>The application the user interacts with. It runs the model, owns the agent loop, decides which servers to connect, and enforces permission. Examples: an IDE assistant, a desktop chat app, your own agent runtime.</dd></div>
+      <div><dt>Client</dt><dd>A connector inside the host, one per server, maintaining a single stateful session. The isolation is deliberate: server B cannot observe server A's traffic.</dd></div>
+      <div><dt>Server</dt><dd>A program exposing capabilities — tools, resources, prompts — over the protocol. Can be a local process or a remote service. Knows nothing about which model is being used.</dd></div>
+      <div><dt>Base protocol</dt><dd>JSON-RPC 2.0: requests with ids, matching responses, and one-way notifications. Stateful session, negotiated at connect time.</dd></div>
+    </dl>
+
+    <h3>The primitives</h3>
+    <p>Three flow server → client. The control model is the important column — it's what stops MCP from being "just tools with extra steps".</p>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Primitive</th><th>Is</th><th>Controlled by</th><th>Methods</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Tools</strong></td><td>Executable functions with side effects</td><td><em>The model</em> — it decides when to invoke</td><td><code>tools/list</code>, <code>tools/call</code></td></tr>
+          <tr><td><strong>Resources</strong></td><td>Readable data identified by URI; no side effects</td><td><em>The application</em> — the host decides what to load</td><td><code>resources/list</code>, <code>resources/read</code>, <code>resources/subscribe</code></td></tr>
+          <tr><td><strong>Prompts</strong></td><td>Parameterised templates / workflows</td><td><em>The user</em> — typically surfaced as slash commands</td><td><code>prompts/list</code>, <code>prompts/get</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>Three flow the other way — client capabilities a server may call on:</p>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Capability</th><th>What the server asks for</th><th>Why it matters</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Sampling</strong></td><td>"Run this completion for me"</td><td>Servers get LLM capability without shipping their own model or holding your API key. The host stays in control and can require approval.</td></tr>
+          <tr><td><strong>Roots</strong></td><td>"Which directories/URIs am I scoped to?"</td><td>The client declares the boundary; the server stays inside it.</td></tr>
+          <tr><td><strong>Elicitation</strong></td><td>"Ask the user for this field"</td><td>Structured mid-operation input — confirmations, missing parameters — without the server inventing its own UI.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Transports</h3>
+    <p><strong>stdio</strong> — the host launches the server as a child process and speaks newline-delimited JSON over stdin/stdout. Zero network surface, trivially fast, ideal for local tools. This is where you should start.</p>
+    <p><strong>Streamable HTTP</strong> — one HTTP endpoint; the client POSTs JSON-RPC messages and the server may reply with a single JSON response or upgrade to an SSE stream for multiple messages. Sessions are tracked by an <code>Mcp-Session-Id</code> header. This replaced the older two-endpoint HTTP+SSE transport, which remains only for backwards compatibility. Remote servers should use OAuth 2.1, treating the MCP server as an OAuth Resource Server that validates tokens issued for it specifically.</p>
+
+    <h3>Lifecycle and wire format</h3>
+
+    <figure class="code">
+      <figcaption><span>session</span><span class="tag">JSON-RPC 2.0 over stdio</span></figcaption>
+<pre><code><span class="c">→ initialize: client states its version and capabilities</span>
+{<span class="k">"jsonrpc"</span>:<span class="s">"2.0"</span>,<span class="k">"id"</span>:1,<span class="k">"method"</span>:<span class="s">"initialize"</span>,<span class="k">"params"</span>:{
+  <span class="k">"protocolVersion"</span>:<span class="s">"2025-06-18"</span>,
+  <span class="k">"capabilities"</span>:{<span class="k">"sampling"</span>:{},<span class="k">"roots"</span>:{<span class="k">"listChanged"</span>:true}},
+  <span class="k">"clientInfo"</span>:{<span class="k">"name"</span>:<span class="s">"my-agent"</span>,<span class="k">"version"</span>:<span class="s">"0.1.0"</span>}}}
+
+<span class="c">← server answers with what IT supports — capability negotiation</span>
+{<span class="k">"jsonrpc"</span>:<span class="s">"2.0"</span>,<span class="k">"id"</span>:1,<span class="k">"result"</span>:{
+  <span class="k">"protocolVersion"</span>:<span class="s">"2025-06-18"</span>,
+  <span class="k">"capabilities"</span>:{<span class="k">"tools"</span>:{<span class="k">"listChanged"</span>:true},<span class="k">"resources"</span>:{<span class="k">"subscribe"</span>:true}},
+  <span class="k">"serverInfo"</span>:{<span class="k">"name"</span>:<span class="s">"orders"</span>,<span class="k">"version"</span>:<span class="s">"1.0.0"</span>}}}
+
+<span class="c">→ notification (no id, no reply): handshake complete</span>
+{<span class="k">"jsonrpc"</span>:<span class="s">"2.0"</span>,<span class="k">"method"</span>:<span class="s">"notifications/initialized"</span>}
+
+<span class="c">→ discover, then invoke</span>
+{<span class="k">"jsonrpc"</span>:<span class="s">"2.0"</span>,<span class="k">"id"</span>:2,<span class="k">"method"</span>:<span class="s">"tools/list"</span>}
+{<span class="k">"jsonrpc"</span>:<span class="s">"2.0"</span>,<span class="k">"id"</span>:3,<span class="k">"method"</span>:<span class="s">"tools/call"</span>,<span class="k">"params"</span>:{
+  <span class="k">"name"</span>:<span class="s">"search_orders"</span>,<span class="k">"arguments"</span>:{<span class="k">"customer_id"</span>:<span class="s">"cus_8fA2b91x"</span>}}}
+
+<span class="c">← content blocks, plus optional structuredContent for typed output</span>
+{<span class="k">"jsonrpc"</span>:<span class="s">"2.0"</span>,<span class="k">"id"</span>:3,<span class="k">"result"</span>:{
+  <span class="k">"content"</span>:[{<span class="k">"type"</span>:<span class="s">"text"</span>,<span class="k">"text"</span>:<span class="s">"3 orders found..."</span>}],
+  <span class="k">"isError"</span>:false}}</code></pre>
+    </figure>
+
+    <div class="note">
+      <span class="label">Two error channels, don't confuse them</span>
+      <p>A <em>protocol</em> error (unknown method, malformed params) is a JSON-RPC <code>error</code> object — the model never sees it. A <em>tool execution</em> error (the query failed) is a normal <code>result</code> with <code>isError: true</code> and an explanatory text block — the model <em>does</em> see it and can recover. Returning execution failures as protocol errors is a common bug that makes agents unable to self-correct.</p>
+    </div>
+
+    <h3>A server, end to end</h3>
+    <p>The official Python SDK ships <code>FastMCP</code>, which derives the JSON Schema from your type hints and the tool description from the docstring — so the model-facing surface is the code itself.</p>
+
+    <figure class="code">
+      <figcaption><span>server.py</span><span class="tag">pip install "mcp[cli]"</span></figcaption>
+<pre><code><span class="k">from</span> mcp.server.fastmcp <span class="k">import</span> FastMCP
+<span class="k">from</span> pydantic <span class="k">import</span> Field
+<span class="k">from</span> typing <span class="k">import</span> Literal
+
+mcp = FastMCP(<span class="s">"orders"</span>)
+
+<span class="c"># ── TOOL: model-controlled, may have side effects ──────────────────</span>
+<span class="k">@mcp</span>.tool()
+<span class="k">def</span> search_orders(
+    customer_id: str = Field(description=<span class="s">"Stripe-style id, e.g. cus_8fA2b91x"</span>),
+    status: Literal[<span class="s">"pending"</span>,<span class="s">"shipped"</span>,<span class="s">"delivered"</span>,<span class="s">"refunded"</span>] | None = None,
+) -> str:
+    <span class="s">"""Find orders for one customer, newest first, max 50.
+
+    Use before answering anything about order status, refunds or shipping.
+    Do NOT use for customer profile lookups — use get_customer instead.
+    """</span>
+    rows = db.query(customer_id, status)
+    <span class="k">if</span> <span class="k">not</span> rows:
+        <span class="c"># an observation the model can act on, not an exception</span>
+        <span class="k">return</span> <span class="s">f"No orders for {customer_id}. Verify the id with get_customer."</span>
+    <span class="k">return</span> format_table(rows[:<span class="s">50</span>])
+
+<span class="c"># ── RESOURCE: app-controlled, read-only, addressed by URI ──────────</span>
+<span class="k">@mcp</span>.resource(<span class="s">"policy://refunds"</span>)
+<span class="k">def</span> refund_policy() -> str:
+    <span class="s">"""The current refund policy, verbatim."""</span>
+    <span class="k">return</span> Path(<span class="s">"policies/refunds.md"</span>).read_text()
+
+<span class="c"># templated resources take parameters from the URI</span>
+<span class="k">@mcp</span>.resource(<span class="s">"orders://{order_id}/invoice"</span>)
+<span class="k">def</span> invoice(order_id: str) -> str:
+    <span class="k">return</span> render_invoice(order_id)
+
+<span class="c"># ── PROMPT: user-controlled, surfaces as a slash command ───────────</span>
+<span class="k">@mcp</span>.prompt()
+<span class="k">def</span> investigate(order_id: str) -> str:
+    <span class="s">"""Walk through a disputed order."""</span>
+    <span class="k">return</span> (<span class="s">f"Investigate order {order_id}. Pull the order, check it against "</span>
+            <span class="s">"policy://refunds, then recommend an action with reasoning."</span>)
+
+<span class="k">if</span> __name__ == <span class="s">"__main__"</span>:
+    mcp.run(transport=<span class="s">"stdio"</span>)   <span class="c"># or "streamable-http" for remote</span></code></pre>
+    </figure>
+
+    <h3>A client, end to end</h3>
+    <p>This is the piece that matters for building your own agent: connect, list, translate MCP tool definitions into whatever tool format your model API wants, then route calls back.</p>
+
+    <figure class="code">
+      <figcaption><span>client.py</span><span class="tag">bridging MCP → your agent loop</span></figcaption>
+<pre><code><span class="k">import</span> asyncio
+<span class="k">from</span> mcp <span class="k">import</span> ClientSession, StdioServerParameters
+<span class="k">from</span> mcp.client.stdio <span class="k">import</span> stdio_client
+
+<span class="k">async def</span> main():
+    params = StdioServerParameters(command=<span class="s">"python"</span>, args=[<span class="s">"server.py"</span>])
+
+    <span class="k">async with</span> stdio_client(params) <span class="k">as</span> (read, write):
+        <span class="k">async with</span> ClientSession(read, write) <span class="k">as</span> session:
+            <span class="k">await</span> session.initialize()          <span class="c"># handshake</span>
+
+            listed = <span class="k">await</span> session.list_tools()
+            <span class="c"># translate to your provider's tool format, once, at startup</span>
+            tools = [{
+                <span class="s">"name"</span>: t.name,
+                <span class="s">"description"</span>: t.description,
+                <span class="s">"input_schema"</span>: t.inputSchema,
+            } <span class="k">for</span> t <span class="k">in</span> listed.tools]
+
+            messages = [{<span class="s">"role"</span>:<span class="s">"user"</span>, <span class="s">"content"</span>: <span class="s">"Any refunds for cus_8fA2b91x?"</span>}]
+
+            <span class="k">for</span> _ <span class="k">in</span> range(<span class="s">10</span>):
+                reply = llm(messages, tools=tools)
+                messages.append(reply)
+                <span class="k">if</span> <span class="k">not</span> reply.tool_calls:
+                    print(reply.content); <span class="k">break</span>
+
+                <span class="k">for</span> call <span class="k">in</span> reply.tool_calls:
+                    <span class="c"># the only MCP-specific line in the whole loop</span>
+                    out = <span class="k">await</span> session.call_tool(call.name, call.args)
+                    text = <span class="s">"\n"</span>.join(c.text <span class="k">for</span> c <span class="k">in</span> out.content
+                                     <span class="k">if</span> c.type == <span class="s">"text"</span>)
+                    messages.append({<span class="s">"role"</span>:<span class="s">"tool"</span>, <span class="s">"tool_call_id"</span>: call.id,
+                                     <span class="s">"content"</span>: text})
+
+asyncio.run(main())</code></pre>
+    </figure>
+
+    <h3>Wiring it into a host</h3>
+    <p>Most hosts take a config block naming a command to launch. Same shape almost everywhere:</p>
+
+    <figure class="code">
+      <figcaption><span>mcp config</span><span class="tag">stdio server registration</span></figcaption>
+<pre><code>{
+  <span class="k">"mcpServers"</span>: {
+    <span class="k">"orders"</span>: {
+      <span class="k">"command"</span>: <span class="s">"python"</span>,
+      <span class="k">"args"</span>: [<span class="s">"/abs/path/to/server.py"</span>],
+      <span class="k">"env"</span>: {<span class="k">"DATABASE_URL"</span>: <span class="s">"postgres://..."</span>}
+    }
+  }
+}</code></pre>
+    </figure>
+
+    <p>Use absolute paths — the host may launch from any working directory. Debug with the MCP Inspector (<code>npx @modelcontextprotocol/inspector</code>, or <code>mcp dev server.py</code> with the Python SDK), which gives you a UI to list and call everything without involving a model at all. Do that before you connect a model; it separates protocol bugs from prompting bugs.</p>
+
+    <div class="note warn">
+      <span class="label">stdio servers must never print to stdout</span>
+      <p>stdout <em>is</em> the protocol channel. A stray <code>print()</code> corrupts the JSON-RPC stream and the connection dies with an opaque parse error. Log to stderr, or to a file. This is the single most common first-time MCP bug.</p>
+    </div>
+
+    <h3>Design rules for servers that hosts actually keep installed</h3>
+    <ul>
+      <li><strong>Expose workflows, not endpoints.</strong> A 1:1 wrapper over 60 REST endpoints is a bad server. Three tools that answer the three real questions is a good one.</li>
+      <li><strong>Tools vs resources.</strong> If it has side effects or needs computation, it's a tool. If it's static-ish readable context the host might want to attach, it's a resource. Read-only lookups that the model must decide to fetch are still tools.</li>
+      <li><strong>Annotate honestly.</strong> The read-only / destructive / idempotent hints drive host approval UI. Lying about them breaks the user's trust model.</li>
+      <li><strong>Version and evolve carefully.</strong> Renaming a tool breaks every prompt that referenced it. Add before you remove.</li>
+      <li><strong>Fail with guidance.</strong> Same rule as §05 — the error text is read by a model that is trying to recover.</li>
+    </ul>
+  </section>
+
+  <!-- ═══ 10 ═══════════════════════════════════════════════════════════ -->
+  <section class="sec" id="s10">
+    <div class="sec-head"><span class="n">10</span><h2>Guardrails and security</h2></div>
+
+    <p>An agent is a program that takes untrusted input and decides which privileged actions to execute. Treat it that way.</p>
+
+    <h3>Prompt injection is the defining threat</h3>
+    <p>Any content the agent reads — a web page, an email, a code comment, a tool result, a Jira ticket — can contain instructions. The model has no reliable way to tell data from directive. Assume every retrieved token is adversarial.</p>
+    <p>What actually helps, in order of effectiveness:</p>
+    <ul>
+      <li><strong>Least privilege.</strong> The agent can only do what its tools allow. If it has no <code>send_email</code> tool, no injection can make it send email. This is the only defence that doesn't depend on the model behaving.</li>
+      <li><strong>Approval gates on irreversible actions.</strong> Deletes, payments, external sends, production writes. Show the exact call and let a human confirm.</li>
+      <li><strong>The lethal trifecta.</strong> Danger concentrates where three things meet: access to private data, exposure to untrusted content, and the ability to communicate externally. Break any one leg and exfiltration becomes much harder.</li>
+      <li><strong>Mark untrusted regions.</strong> Wrap retrieved content in delimiters and state in the system prompt that content inside is data, never instructions. Helps; is not sufficient alone.</li>
+      <li><strong>Validate outputs, not just inputs.</strong> Check the arguments of a tool call against policy before executing — a URL allowlist beats hoping the model didn't get talked into a webhook.</li>
+    </ul>
+
+    <h3>Layers to put around the loop</h3>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Layer</th><th>Runs</th><th>Catches</th></tr></thead>
+        <tbody>
+          <tr><td>Input filter</td><td>Before the model</td><td>Off-topic, abusive, obvious injection attempts</td></tr>
+          <tr><td>Schema validation</td><td>Between call and execution</td><td>Malformed or out-of-range arguments</td></tr>
+          <tr><td>Policy check</td><td>Between call and execution</td><td>Allowed action, wrong target — foreign account, prod DB, unlisted domain</td></tr>
+          <tr><td>Approval gate</td><td>Before irreversible actions</td><td>Everything else, by asking a human</td></tr>
+          <tr><td>Output filter</td><td>Before the user sees it</td><td>Leaked secrets, PII, unsupported claims</td></tr>
+          <tr><td>Budget guard</td><td>Continuously</td><td>Runaway loops and cost spikes</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>MCP-specific hazards</h3>
+    <ul class="tight">
+      <li><strong>Malicious servers.</strong> An MCP server you install is code you run with your permissions, and its tool descriptions go straight into your model's context. Audit before installing; prefer pinned versions.</li>
+      <li><strong>Rug pulls.</strong> A server can change a tool's description after you approved it. Pin versions; re-review on change.</li>
+      <li><strong>Confused deputy.</strong> A server holding a broad credential can be induced to act on behalf of a request it shouldn't honour. Scope credentials per-server, never share one token across servers.</li>
+      <li><strong>Token passthrough.</strong> Don't accept a token issued for a different service and forward it. Validate that the token was issued <em>for this server</em>.</li>
+      <li><strong>Cross-server composition.</strong> Server A reads untrusted data, server B can send it outward. Individually fine; together, exfiltration. Review the union of installed capabilities, not each in isolation.</li>
+    </ul>
+
+    <div class="note">
+      <span class="label">Sandbox the runtime</span>
+      <p>If the agent runs code or shell commands, it belongs in a container with no host filesystem mount, an egress allowlist, no ambient cloud credentials, and a wall-clock kill. The model does not need to be malicious for this to matter — a confused agent with <code>rm</code> does the same damage as a hostile one.</p>
+    </div>
+  </section>
+
+  <!-- ═══ 11 ═══════════════════════════════════════════════════════════ -->
+  <section class="sec" id="s11">
+    <div class="sec-head"><span class="n">11</span><h2>Evaluation</h2></div>
+
+    <p>Agents are stochastic and multi-step, so "it worked when I tried it" is not evidence. You need a fixed set of cases you can re-run on every prompt change, every model swap, every tool edit.</p>
+
+    <h3>Three things to measure</h3>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Level</th><th>Question</th><th>How</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Outcome</strong></td><td>Did it get the right answer?</td><td>Exact match, tests passing, a checkable assertion, or an LLM judge with a rubric</td></tr>
+          <tr><td><strong>Trajectory</strong></td><td>Did it get there sensibly?</td><td>Compare the tool-call sequence: did it call the right tools, avoid needless ones, recover from errors?</td></tr>
+          <tr><td><strong>Cost</strong></td><td>What did it spend?</td><td>Tokens, tool calls, steps, wall-clock — per case, tracked over time</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>Trajectory matters because outcome alone hides regressions: an agent that reaches the right answer after 14 flailing calls is a production incident waiting to happen, and an outcome-only suite scores it identically to a clean three-call run.</p>
+
+    <h3>Building the suite</h3>
+    <ul>
+      <li>Start with <strong>20 real cases</strong>, not 500 synthetic ones. Pull them from actual failures and actual user requests. Add every bug you fix as a permanent case.</li>
+      <li>Cover the shape of the space: happy path, ambiguous request, missing data, tool failure, out-of-scope request, adversarial input.</li>
+      <li>Run each case <strong>several times</strong> and record the pass <em>rate</em>. A flaky 60% is different from a solid 60%, and single runs will lie to you.</li>
+      <li>Prefer <strong>programmatic checks</strong> where you can get them — did the row get created, do the tests pass, is the JSON valid. They're free and they don't drift.</li>
+      <li>For subjective quality, use an <strong>LLM judge with an explicit rubric</strong> and require it to cite evidence. Then validate the judge against human labels on a sample; an uncalibrated judge is a confident random number generator.</li>
+      <li>Wire it into CI with a threshold. If the suite doesn't gate a merge, it will rot.</li>
+    </ul>
+
+    <div class="note">
+      <span class="label">The fastest quality loop</span>
+      <p>Read traces. Sit down with twenty real runs and read them end to end. You will find more actionable problems in an hour of that than in a week of metric-staring — and every one of them becomes an eval case.</p>
+    </div>
+  </section>
+
+  <!-- ═══ 12 ═══════════════════════════════════════════════════════════ -->
+  <section class="sec" id="s12">
+    <div class="sec-head"><span class="n">12</span><h2>Observability, cost, and the runtime</h2></div>
+
+    <p>You cannot debug what you cannot see, and an agent's behaviour lives in the sequence, not in any one call. Emit a span per LLM call and per tool call, nested under a run-level trace, carrying: the full prompt and response, the tool name and arguments, latency, token counts, cost, and the error if any. OpenTelemetry's GenAI semantic conventions give you a vendor-neutral shape; LangSmith, Langfuse, Braintrust and Phoenix all offer the UI on top.</p>
+
+    <h3>Cost control</h3>
+    <ul>
+      <li><strong>Tier your models.</strong> Strong model for planning and final synthesis; cheap fast model for classification, extraction, and routing. This is usually the single largest saving available.</li>
+      <li><strong>Cache the prefix.</strong> Stable system prompt and tool schemas up front (§04). Large, repeated wins.</li>
+      <li><strong>Return handles, not payloads.</strong> Every KB a tool returns is re-sent on every subsequent turn.</li>
+      <li><strong>Hard budgets per run.</strong> Steps, tokens, and seconds. Stop and report honestly when one is hit.</li>
+      <li><strong>Track cost per successful task</strong>, not per call — that's the number that tells you whether the system is viable.</li>
+    </ul>
+
+    <h3>Runtime concerns demos skip</h3>
+    <ul>
+      <li><strong>Durability.</strong> Long runs must survive a process restart. Checkpoint state after each step; make the loop resumable from a run id.</li>
+      <li><strong>Human-in-the-loop as a pause, not a block.</strong> An approval gate should suspend the run to storage and resume on the reply — not hold a thread open.</li>
+      <li><strong>Streaming.</strong> Users tolerate a 40-second run if they can see the steps. Stream tool names and progress, not just final tokens.</li>
+      <li><strong>Cancellation.</strong> A stop button must actually kill in-flight tool calls, not just hide the output.</li>
+      <li><strong>Idempotency and retries.</strong> Retry transient failures with backoff; ensure write tools are safe to repeat.</li>
+      <li><strong>Concurrency.</strong> Rate limits are per-account, not per-run. Centralise the limiter.</li>
+    </ul>
+  </section>
+
+  <!-- ═══ 13 ═══════════════════════════════════════════════════════════ -->
+  <section class="sec" id="s13">
+    <div class="sec-head"><span class="n">13</span><h2>Failure modes and fixes</h2></div>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Symptom</th><th>Usual cause</th><th>Fix</th></tr></thead>
+        <tbody>
+          <tr><td>Calls the wrong tool</td><td>Overlapping or vague descriptions</td><td>Rewrite descriptions with explicit "use when / do not use when"; merge or delete near-duplicates</td></tr>
+          <tr><td>Right tool, wrong arguments</td><td>Loose schema, no examples</td><td>Enums, patterns, required fields; add an example call to the description</td></tr>
+          <tr><td>Loops on the same call</td><td>Uninformative tool result; no progress check</td><td>Return actionable errors; detect repeated identical calls and inject a nudge; cap steps</td></tr>
+          <tr><td>Stops too early</td><td>Weak stop criteria; model treats partial work as done</td><td>Explicit <code>submit_answer</code> tool with a completion checklist; verifier that can reject</td></tr>
+          <tr><td>Forgets the goal mid-run</td><td>Goal buried in a long context</td><td>Restate the objective each turn; persist a plan file; compact aggressively</td></tr>
+          <tr><td>Degrades on long tasks</td><td>Context bloat, attention dilution</td><td>Compaction, sub-agent isolation, just-in-time retrieval (§04)</td></tr>
+          <tr><td>Great in demo, bad in prod</td><td>Tested on happy paths only</td><td>Eval suite with failures, ambiguity, and adversarial cases (§11)</td></tr>
+          <tr><td>Costs 10× the estimate</td><td>Cache misses; huge tool outputs; retry storms</td><td>Stable prefix ordering; truncate/handle-return; budget caps (§12)</td></tr>
+          <tr><td>Confidently wrong answers</td><td>No grounding or provenance</td><td>Require citations from retrieved sources; verify claims against tool output before answering</td></tr>
+          <tr><td>Non-reproducible bugs</td><td>No trace of what happened</td><td>Trace every step with inputs and outputs (§12)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ═══ 14 ═══════════════════════════════════════════════════════════ -->
+  <section class="sec" id="s14">
+    <div class="sec-head"><span class="n">14</span><h2>The landscape</h2></div>
+
+    <p>Tools change fast; the categories don't. Learn the category, then pick within it.</p>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Category</th><th>Options</th><th>Pick when</th></tr></thead>
+        <tbody>
+          <tr><td>Graph orchestration</td><td>LangGraph</td><td>You need explicit state machines, checkpointing, resumable human-in-the-loop</td></tr>
+          <tr><td>Lightweight agent SDKs</td><td>OpenAI Agents SDK, Anthropic Agent SDK, Pydantic AI, Atomic Agents</td><td>You want the loop, handoffs, and typed tools without a graph abstraction</td></tr>
+          <tr><td>Multi-agent frameworks</td><td>CrewAI, AutoGen, Semantic Kernel</td><td>Role-based teams are genuinely the right shape (re-read §07 first)</td></tr>
+          <tr><td>Model gateway</td><td>LiteLLM, OpenRouter</td><td>You want one interface across providers, with routing, fallback and spend caps</td></tr>
+          <tr><td>Tool interop</td><td>MCP</td><td>Always, for anything you want reusable across hosts</td></tr>
+          <tr><td>Retrieval</td><td>pgvector, Qdrant, Weaviate, LanceDB; plus a re-ranker</td><td>Start with pgvector if you already run Postgres</td></tr>
+          <tr><td>Observability</td><td>LangSmith, Langfuse, Braintrust, Phoenix, OTel GenAI</td><td>From day one, not after the first incident</td></tr>
+          <tr><td>Sandboxing</td><td>Docker, Firecracker, E2B, Modal</td><td>The agent executes generated code or shell commands</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note">
+      <span class="label">Frameworks are optional</span>
+      <p>Every framework above is a wrapper around §02's loop. Build one raw agent by hand before adopting one — you'll then choose based on what the abstraction buys you (checkpointing, streaming, retries) rather than on what it hides.</p>
+    </div>
+  </section>
+
+  <!-- ═══ PART II ══════════════════════════════════════════════════════ -->
+  <div class="part">
+    <span class="pn">Part II</span>
+    <h2>Depth</h2>
+    <p>The first fourteen sections get a working agent. These eight are what separate one that survives contact with real traffic — where the token bill, the latency budget, the security review, and the 3 a.m. restart all start mattering at once.</p>
+  </div>
+
+  <!-- ═══ 15 ═══════════════════════════════════════════════════════════ -->
+  <section class="sec" id="s15">
+    <div class="sec-head"><span class="n">15</span><h2>Test-time compute: buying quality with tokens</h2></div>
+
+    <p class="lede">You can spend more compute at inference to get better answers — but only if you have a way to <em>select</em> among the results. Without a selector, N samples is N× the cost and a random pick.</p>
+
+    <p>That rule is the whole section. Everything below is a different way of generating candidates and a different selector.</p>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Technique</th><th>Generate</th><th>Select</th><th>Use when</th></tr></thead>
+        <tbody>
+          <tr><td>Extended thinking</td><td>One answer, more reasoning tokens first</td><td>n/a — sequential refinement</td><td>Planning, math, multi-constraint decisions. Not retrieval or formatting.</td></tr>
+          <tr><td>Self-consistency</td><td>N samples at temperature</td><td>Majority vote on the answer</td><td>Answer space is small and comparable — a label, a number, a yes/no.</td></tr>
+          <tr><td>Best-of-N</td><td>N independent attempts</td><td>A verifier scores them</td><td>You have a cheap, trustworthy verifier. This is the constraint.</td></tr>
+          <tr><td>Sequential revision</td><td>One attempt, then critique-and-retry</td><td>The critic's pass/fail</td><td>Errors are localised and fixable — code against tests, drafts against a rubric.</td></tr>
+          <tr><td>Tree search</td><td>Branch at decision points, expand promising nodes</td><td>Value estimate per node</td><td>Rarely worth it: needs cheap, <em>dense</em> intermediate signal. Most agent tasks only score at the end.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>The verifier is the whole game</h3>
+    <p>Ranked by how much you should trust them: <strong>programmatic checks</strong> (tests pass, code compiles, JSON validates, the invariant holds) &gt; <strong>execution against ground truth</strong> &gt; <strong>an LLM judge with a rubric</strong> &gt; <strong>the same model grading itself</strong>, which is close to worthless because its errors correlate with its generation.</p>
+
+    <p>Practical consequence: when you can express success as a program, best-of-N is enormously effective. When you can't, prefer sequential revision with an explicit rubric, and cap it — quality plateaus after two or three rounds and then degrades as the model starts editing for the sake of editing.</p>
+
+    <figure class="code">
+      <figcaption><span>best_of_n.py</span><span class="tag">parallel sampling + programmatic verifier</span></figcaption>
+<pre><code><span class="k">async def</span> best_of_n(task, n=<span class="s">5</span>, verify=run_tests):
+    <span class="c"># diversity comes from temperature; identical samples waste the budget</span>
+    cands = <span class="k">await</span> asyncio.gather(*[
+        generate(task, temperature=<span class="s">0.8</span>, seed=i) <span class="k">for</span> i <span class="k">in</span> range(n)
+    ])
+
+    scored = <span class="k">await</span> asyncio.gather(*[verify(c) <span class="k">for</span> c <span class="k">in</span> cands])
+    passing = [(s, c) <span class="k">for</span> s, c <span class="k">in</span> zip(scored, cands) <span class="k">if</span> s.ok]
+
+    <span class="k">if</span> passing:
+        <span class="c"># tie-break on a secondary signal, not on model preference</span>
+        <span class="k">return</span> min(passing, key=<span class="k">lambda</span> p: len(p[1]))[<span class="s">1</span>]
+
+    <span class="c"># nothing passed: escalate rather than returning the least-bad guess</span>
+    best = max(zip(scored, cands), key=<span class="k">lambda</span> p: p[<span class="s">0</span>].partial_score)
+    <span class="k">return</span> <span class="k">await</span> revise(best[<span class="s">1</span>], feedback=best[<span class="s">0</span>].failures)</code></pre>
+    </figure>
+
+    <h3>Adaptive budgets</h3>
+    <p>Spending maximum compute on every request is how you get a beautiful demo and an unviable unit economic. Route instead: classify difficulty cheaply, run the fast path, and escalate only on a signal — the verifier failed, the model expressed low confidence, the router flagged it, or the user rejected the first answer. Most traffic is easy; pay for the tail.</p>
+
+    <div class="note warn">
+      <span class="label">Thinking is not free, and not always helpful</span>
+      <p>Extended thinking costs output tokens at output prices and adds latency before the first visible byte. It reliably helps on planning and constraint satisfaction; it does roughly nothing for lookup, extraction, and formatting, and it can hurt on tasks where the right move is to just call a tool. Enable it per node, not globally.</p>
+    </div>
+  </section>
+
+  <!-- ═══ 16 ═══════════════════════════════════════════════════════════ -->
+  <section class="sec" id="s16">
+    <div class="sec-head"><span class="n">16</span><h2>Structured output and typed contracts</h2></div>
+
+    <p>Anywhere an agent's output is consumed by code rather than a human, you need a contract. Three mechanisms, in ascending order of strength:</p>
+
+    <ol>
+      <li><strong>Prompt and parse.</strong> "Reply with JSON." Works most of the time, which is the problem — the failures are rare enough to skip in testing and frequent enough to page you.</li>
+      <li><strong>Tool / function calling.</strong> The provider enforces the schema shape. This is the right default, and it's what you're already using for tools — a "return the answer" tool is just a tool.</li>
+      <li><strong>Constrained decoding.</strong> The sampler is masked at each step against a grammar compiled from your schema, so invalid tokens are literally unsamplable. Strongest guarantee available.</li>
+    </ol>
+
+    <div class="note warn">
+      <span class="label">Syntax ≠ semantics</span>
+      <p>Constrained decoding guarantees the output <em>parses</em>. It does not guarantee the content is right — a model can emit perfectly schema-valid nonsense, and over-tight schemas can push it there. Validate values, not just shape, and keep a semantic check downstream.</p>
+    </div>
+
+    <h3>One type, three uses</h3>
+    <p>Define the shape once and let it serve as the model-facing schema, the runtime validator, and your code's static type. This is the pattern that removes an entire category of drift bugs.</p>
+
+    <figure class="code">
+      <figcaption><span>contracts.py</span><span class="tag">field order is load-bearing</span></figcaption>
+<pre><code><span class="k">from</span> pydantic <span class="k">import</span> BaseModel, Field
+<span class="k">from</span> typing <span class="k">import</span> Literal
+
+<span class="k">class</span> Triage(BaseModel):
+    <span class="c"># generation is left-to-right, so the model literally reasons *into*</span>
+    <span class="c"># this field before it must commit to a label. put it first.</span>
+    reasoning: str = Field(description=<span class="s">"Evidence from the ticket, 1-3 sentences."</span>)
+
+    category: Literal[<span class="s">"billing"</span>,<span class="s">"bug"</span>,<span class="s">"feature"</span>,<span class="s">"abuse"</span>,<span class="s">"other"</span>]
+    severity: Literal[<span class="s">"low"</span>,<span class="s">"medium"</span>,<span class="s">"high"</span>,<span class="s">"critical"</span>]
+
+    <span class="c"># an explicit escape hatch. without one, a forced enum makes the</span>
+    <span class="c"># model guess confidently on inputs that fit none of the options.</span>
+    needs_human: bool = Field(description=<span class="s">"True if the ticket is ambiguous."</span>)
+
+
+<span class="k">def</span> triage(ticket: str, attempts=<span class="s">2</span>) -> Triage:
+    messages = [{<span class="s">"role"</span>:<span class="s">"user"</span>, <span class="s">"content"</span>: ticket}]
+    <span class="k">for</span> _ <span class="k">in</span> range(attempts):
+        raw = llm(messages, response_schema=Triage.model_json_schema())
+        <span class="k">try</span>:
+            <span class="k">return</span> Triage.model_validate_json(raw)
+        <span class="k">except</span> ValidationError <span class="k">as</span> e:
+            <span class="c"># feed the validator's own message back — it is a precise,</span>
+            <span class="c"># machine-generated correction and models act on it well</span>
+            messages += [{<span class="s">"role"</span>:<span class="s">"assistant"</span>,<span class="s">"content"</span>: raw},
+                         {<span class="s">"role"</span>:<span class="s">"user"</span>,<span class="s">"content"</span>: <span class="s">f"Invalid: {e}. Reply again."</span>}]
+    <span class="k">raise</span> ContractError(<span class="s">"schema not satisfied"</span>)</code></pre>
+    </figure>
+
+    <h3>Details that matter in practice</h3>
+    <ul>
+      <li><strong>Put free-text reasoning fields before the fields they justify.</strong> Autoregressive generation means a <code>reasoning</code> field placed after <code>category</code> is a post-hoc rationalisation of a decision already made.</li>
+      <li><strong>Always include an "I don't know" branch.</strong> A closed enum with no escape hatch forces a confident wrong answer on out-of-distribution input.</li>
+      <li><strong>Discriminated unions for branching decisions.</strong> <code>{action: "refund", amount: …} | {action: "escalate", reason: …}</code> beats one flat object with a dozen optional fields the model must guess about.</li>
+      <li><strong>Keep schemas shallow.</strong> Deeply nested objects with many optional fields measurably degrade both compliance and reasoning quality. Flatten, or split into two calls.</li>
+      <li><strong>Stream partial JSON</strong> with an incremental parser when a UI is waiting — render fields as they close instead of blocking on the final brace.</li>
+      <li><strong>On the MCP side</strong>, declare an <code>outputSchema</code> on a tool and return <code>structuredContent</code> alongside the human-readable text block. Clients that understand it get typed data; those that don't still get text.</li>
+    </ul>
+  </section>
+
+  <!-- ═══ 17 ═══════════════════════════════════════════════════════════ -->
+  <section class="sec" id="s17">
+    <div class="sec-head"><span class="n">17</span><h2>Code as the tool interface</h2></div>
+
+    <p>Direct tool calling has two costs that grow badly. Every tool's schema sits in context on every turn, so a large tool set eats the window before the task starts. And every intermediate result round-trips through the model — fetch 10,000 rows, the model sees 10,000 rows, filters them by generating text about them, then calls the next tool.</p>
+
+    <p><strong>Code mode</strong> inverts this. Present the tools as a typed API inside a sandbox and let the model write a short program that calls them. Loops, filters, joins and aggregations happen in the sandbox at machine speed; only the final result enters the context window.</p>
+
+    <figure class="code">
+      <figcaption><span>the same task, two ways</span><span class="tag">token cost differs by orders of magnitude</span></figcaption>
+<pre><code><span class="c">── direct tool calling ──────────────────────────────────────────────</span>
+<span class="d">turn 1</span>  list_orders(since="2026-01-01")   → 8,400 rows into context
+<span class="d">turn 2</span>  get_customer(cus_1) ... × 200      → 200 round trips
+<span class="d">turn 3</span>  model attempts arithmetic on 8,400 rows it half-remembers
+        <span class="c"># ~400K tokens, ~200 round trips, and the sum is probably wrong</span>
+
+<span class="c">── code mode ────────────────────────────────────────────────────────</span>
+<span class="d">turn 1</span>  model writes, sandbox executes:
+
+          orders = api.list_orders(since=<span class="s">"2026-01-01"</span>)
+          late   = [o <span class="k">for</span> o <span class="k">in</span> orders <span class="k">if</span> o.shipped_at > o.due_at]
+          by_cus = defaultdict(<span class="s">float</span>)
+          <span class="k">for</span> o <span class="k">in</span> late: by_cus[o.customer_id] += o.total
+          top    = sorted(by_cus.items(), key=<span class="k">lambda</span> kv: -kv[<span class="s">1</span>])[:<span class="s">5</span>]
+          print([(api.get_customer(c).name, v) <span class="k">for</span> c, v <span class="k">in</span> top])
+
+<span class="d">result</span>  5 rows into context
+        <span class="c"># ~3K tokens, 1 round trip, arithmetic done by a computer</span></code></pre>
+    </figure>
+
+    <p>The arithmetic point is worth stating plainly: a sandbox does not make rounding errors, and a language model does. Any time a task involves aggregation, deduplication, sorting by a computed key, or set operations over more than a handful of items, moving it into code is a correctness improvement as well as a cost one.</p>
+
+    <h3>Progressive disclosure</h3>
+    <p>The companion idea: instead of loading every tool definition upfront, expose them as files the model can list and read on demand. It sees a directory of capabilities, reads only the two it needs, and the other ninety-eight cost nothing. Same principle drives <em>skills</em> — folders containing instructions plus executable scripts, loaded when a task matches, rather than a monolithic system prompt that carries every procedure the agent might ever need.</p>
+
+    <p>A cheaper middle ground when you don't want a sandbox: <strong>tool retrieval</strong> — embed your tool descriptions, retrieve the relevant subset per request, and pass only those to the model. Keeps a stable core set always loaded, and pulls the long tail in on demand.</p>
+
+    <div class="note warn">
+      <span class="label">The trade you are making</span>
+      <p>Code mode needs a real sandbox (§10) — you are executing model-written code. Errors move from "wrong tool argument" to "traceback", which is harder to constrain but, usefully, is also self-describing feedback. And an audit log of executed programs is far less legible than a log of tool calls. Keep genuinely destructive operations as explicit, approval-gated tools; let code handle the read-heavy work.</p>
+    </div>
+  </section>
+
+  <!-- ═══ 18 ═══════════════════════════════════════════════════════════ -->
+  <section class="sec" id="s18">
+    <div class="sec-head"><span class="n">18</span><h2>Durable execution</h2></div>
+
+    <p class="lede">A long-running agent is a distributed system. It will be interrupted mid-run, and the interruption must not corrupt anything or lose work.</p>
+
+    <p>Three forces push you here at once: runs that take minutes to hours, approval gates that wait on a human who is asleep, and retries that must not re-charge a card. The answer is the same one workflow engines have used for years — <strong>persist state at every step boundary, and make replay safe</strong>.</p>
+
+    <figure class="code">
+      <figcaption><span>durable_loop.py</span><span class="tag">checkpoint · resume · interrupt</span></figcaption>
+<pre><code><span class="k">async def</span> run(run_id: str):
+    st = store.load(run_id) <span class="k">or</span> State(messages=[...], step=<span class="s">0</span>)
+
+    <span class="k">while</span> st.step &lt; MAX_STEPS:
+        reply = <span class="k">await</span> llm(st.messages, tools=TOOLS)
+        st.messages.append(reply)
+        <span class="k">if</span> <span class="k">not</span> reply.tool_calls:
+            st.status = <span class="s">"done"</span>; store.save(run_id, st); <span class="k">return</span> reply.content
+
+        <span class="k">for</span> call <span class="k">in</span> reply.tool_calls:
+            <span class="c"># ── interrupt: persist and RETURN. do not block a thread</span>
+            <span class="c">#    on a human who may answer tomorrow.</span>
+            <span class="k">if</span> TOOLS[call.name].destructive <span class="k">and</span> <span class="k">not</span> st.approved(call.id):
+                st.status, st.pending = <span class="s">"awaiting_approval"</span>, call
+                store.save(run_id, st)
+                <span class="k">return</span> Interrupt(run_id, call)   <span class="c"># resumed by a later event</span>
+
+            <span class="c"># ── idempotency: the same logical call must never</span>
+            <span class="c">#    execute twice, however many times we replay</span>
+            key = f<span class="s">"{run_id}:{st.step}:{call.id}"</span>
+            result = <span class="k">await</span> TOOLS[call.name].run(**call.args, idem_key=key)
+
+            st.messages.append(tool_msg(call.id, result))
+            st.effects.append({<span class="s">"key"</span>: key, <span class="s">"tool"</span>: call.name})
+
+        st.step += <span class="s">1</span>
+        store.save(run_id, st)      <span class="c"># the only durability point that matters</span>
+
+    st.status = <span class="s">"budget_exhausted"</span>; store.save(run_id, st)</code></pre>
+    </figure>
+
+    <h3>What this buys you</h3>
+    <ul>
+      <li><strong>Resume.</strong> A crashed process restarts from the last checkpoint instead of from zero. On a run that has already spent 200 K tokens, this is the difference between a blip and an incident.</li>
+      <li><strong>Approval without blocking.</strong> Thousands of runs can sit paused in storage costing nothing. Surface them as an <em>agent inbox</em> — a queue of pending decisions with the exact effect described in human terms — and resume on the reply.</li>
+      <li><strong>Time-travel debugging.</strong> Load any checkpoint, edit the state, and re-run forward from there. This is the single most useful debugging affordance in agent development, and you only get it if you persisted state as data.</li>
+      <li><strong>Deterministic replay.</strong> If tool results are recorded, replay the whole trajectory without re-calling anything — reproducing a customer's exact failure locally, for free.</li>
+      <li><strong>Event-driven agents.</strong> Once a run is a resumable record, a webhook, a cron tick, or an inbound email can wake it. The agent stops being a request/response call and becomes a process.</li>
+    </ul>
+
+    <h3>Rules for effects</h3>
+    <p>Replay safety is entirely about side effects. Classify every tool: <strong>pure reads</strong> replay freely; <strong>idempotent writes</strong> replay safely given a stable key; <strong>non-idempotent effects</strong> — sending an email, charging a card, posting a message — must be recorded in an effect log before execution and skipped if the key is already present. Derive idempotency keys from run state, not from a timestamp or a random value, or replay generates a fresh key and duplicates the effect.</p>
+
+    <div class="note">
+      <span class="label">Build or buy</span>
+      <p>Framework checkpointers (LangGraph and similar) give you persistence and interrupt/resume with little work and are the right starting point. Dedicated durable-execution engines — Temporal, Restate, DBOS — give you stronger guarantees, retries, timers and exactly-once semantics, at the cost of a heavier programming model. Adopt one when the agent is orchestrating real business transactions rather than answering questions.</p>
+    </div>
+  </section>
+
+  <!-- ═══ 19 ═══════════════════════════════════════════════════════════ -->
+  <section class="sec" id="s19">
+    <div class="sec-head"><span class="n">19</span><h2>Latency and cost, in depth</h2></div>
+
+    <p>Section 12 covered the basics. These are the levers that matter once you're actually serving traffic.</p>
+
+    <h3>Where the time goes</h3>
+    <p>An agent turn is: time-to-first-token (dominated by prompt length and cache state) + decode time (dominated by output length, including thinking tokens) + tool latency + serialisation. Measure them separately or you will optimise the wrong one. The usual surprise is that a "slow agent" is actually one slow tool called eleven times in sequence.</p>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Lever</th><th>Typical effect</th><th>Catch</th></tr></thead>
+        <tbody>
+          <tr><td>Prefix caching</td><td>Large cut in input cost and TTFT on repeat turns</td><td>Any change to the prefix invalidates everything after it — order tokens stable-first (§04)</td></tr>
+          <tr><td>Parallel tool calls</td><td>Turns N sequential tool latencies into one</td><td>Only for independent calls; you must actually gather them, not await in a loop</td></tr>
+          <tr><td>Model cascade</td><td>Most traffic served by a cheap model</td><td>Needs a reliable escalation signal, or you pay for both</td></tr>
+          <tr><td>Speculative prefetch</td><td>Hides tool latency behind model decode</td><td><em>Read-only</em> tools only. Never speculate a write.</td></tr>
+          <tr><td>Batch API</td><td>Substantially cheaper for offline work</td><td>Latency measured in hours — evals, backfills, bulk classification only</td></tr>
+          <tr><td>Semantic cache</td><td>Skips the model entirely on near-duplicate queries</td><td>Stale answers, and false hits on queries that differ in one critical word</td></tr>
+          <tr><td>Shorter outputs</td><td>Output tokens usually cost several times input</td><td>Genuinely constrain format; "be concise" is not a constraint</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Perceived vs actual latency</h3>
+    <p>A 45-second run that streams "searching orders… found 12… checking refund policy…" feels faster than a 20-second silent spinner. Stream the <em>plan and the tool names</em>, not just the final tokens. It is the cheapest latency work available and it also makes the agent legible, which builds the trust that lets users accept longer runs.</p>
+
+    <h3>The number to track</h3>
+    <p><strong>Cost per successfully completed task</strong>, and <strong>p95 latency</strong>, not p50. Averages hide the runs that loop eleven times before succeeding, and those runs are simultaneously your worst cost outlier and your worst user experience. Alert on the tail.</p>
+
+    <div class="note">
+      <span class="label">Cache-hit rate is an observable</span>
+      <p>Providers report cache reads and writes per call. Put the ratio on a dashboard. A sudden drop almost always means someone added a timestamp, a session id, or a shuffled tool list near the top of the prompt — a one-line change with a very large invoice attached.</p>
+    </div>
+  </section>
+
+  <!-- ═══ 20 ═══════════════════════════════════════════════════════════ -->
+  <section class="sec" id="s20">
+    <div class="sec-head"><span class="n">20</span><h2>MCP at scale</h2></div>
+
+    <p>Section 09 is enough to build a server. These are the parts you meet when servers become infrastructure.</p>
+
+    <h3>Server → client requests</h3>
+    <p><strong>Sampling</strong> lets a server ask the host to run a completion. The server gets LLM capability without shipping a model or holding a key, and the host keeps control of cost, model choice, and approval:</p>
+
+    <figure class="code">
+      <figcaption><span>sampling</span><span class="tag">server asks the host for inference</span></figcaption>
+<pre><code><span class="c">← server → client</span>
+{<span class="k">"jsonrpc"</span>:<span class="s">"2.0"</span>,<span class="k">"id"</span>:7,<span class="k">"method"</span>:<span class="s">"sampling/createMessage"</span>,<span class="k">"params"</span>:{
+  <span class="k">"messages"</span>:[{<span class="k">"role"</span>:<span class="s">"user"</span>,
+    <span class="k">"content"</span>:{<span class="k">"type"</span>:<span class="s">"text"</span>,<span class="k">"text"</span>:<span class="s">"Summarise this changelog in 2 lines: ..."</span>}}],
+  <span class="k">"modelPreferences"</span>:{<span class="k">"intelligencePriority"</span>:0.3,<span class="k">"speedPriority"</span>:0.9},
+  <span class="k">"maxTokens"</span>:200}}
+
+<span class="c">→ the HOST chooses the model, may show the user, may refuse</span></code></pre>
+    </figure>
+
+    <p><strong>Elicitation</strong> lets a server request structured input from the user mid-operation — a missing parameter, a confirmation — by sending a JSON schema the host renders as a form. It keeps servers from inventing their own UI and keeps the human in the loop at the point the decision is actually needed. <strong>Roots</strong> let the client declare the filesystem or URI boundaries the server should stay inside.</p>
+
+    <h3>Operational primitives</h3>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Feature</th><th>Mechanism</th><th>Why you need it</th></tr></thead>
+        <tbody>
+          <tr><td>Progress</td><td><code>notifications/progress</code> against a request's <code>progressToken</code></td><td>Long tools look hung without it; the host can render a bar</td></tr>
+          <tr><td>Cancellation</td><td><code>notifications/cancelled</code> for an in-flight request id</td><td>A stop button must actually stop work, not just hide it</td></tr>
+          <tr><td>Pagination</td><td>Opaque <code>cursor</code> on the <code>*/list</code> methods</td><td>A server with 4,000 resources cannot return them in one response</td></tr>
+          <tr><td>Change notifications</td><td><code>notifications/tools/list_changed</code> and siblings</td><td>Tool sets that vary by auth scope or connection state</td></tr>
+          <tr><td>Logging</td><td><code>notifications/message</code> at RFC-5424 levels</td><td>Structured server logs without corrupting stdout</td></tr>
+          <tr><td>Completions</td><td><code>completion/complete</code></td><td>Argument autocomplete for prompts and resource templates</td></tr>
+          <tr><td>Resumability</td><td>SSE event ids + <code>Last-Event-ID</code> on reconnect</td><td>Mobile and flaky networks drop streams constantly</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Composition: gateways and proxies</h3>
+    <p>Past a handful of servers, hosts start hitting the tool-count ceiling from §05. The standard answer is a <strong>gateway server</strong>: one MCP server that is itself a client of many others, exposing a curated, namespaced union. It gives you a single place to do the things you'd otherwise do N times — auth, rate limiting, audit logging, tool filtering per user, and name collision handling (two servers both exposing <code>search</code> is a real and common problem).</p>
+
+    <p>The gateway is also where <strong>dynamic tool sets</strong> live: filter the exposed tools by the caller's scopes, then emit <code>list_changed</code> when they change. A read-only user simply never sees the destructive tools — which is a far stronger guarantee than a model instructed not to call them.</p>
+
+    <h3>Auth and multi-tenancy for remote servers</h3>
+    <ul>
+      <li>Remote servers use <strong>OAuth 2.1</strong>, with the MCP server acting as an OAuth <em>Resource Server</em> that validates tokens and advertises its authorisation server via protected-resource metadata.</li>
+      <li><strong>Validate the audience.</strong> A token must have been issued <em>for this server</em>. Accepting a token minted for another service and forwarding it is the token-passthrough vulnerability from §10.</li>
+      <li><strong>Per-session credentials, not process env.</strong> A multi-tenant server that reads one <code>DATABASE_URL</code> from the environment serves every user as the same principal. Derive the identity from the session's token and scope every query by it.</li>
+      <li><strong>Bind sessions.</strong> Session ids must be unguessable and tied to the authenticated user, or session hijacking is trivial.</li>
+      <li><strong>Validate <code>Origin</code></strong> on HTTP transports and bind local servers to <code>127.0.0.1</code>, to block DNS-rebinding attacks from a browser tab.</li>
+    </ul>
+
+    <div class="note">
+      <span class="label">Test servers like APIs, because they are</span>
+      <p>Contract tests over the protocol: list the tools, assert names and schemas haven't drifted, call each with golden inputs, assert on shape. That suite catches a renamed tool before it silently breaks every prompt downstream — and it runs in seconds with no model in the loop.</p>
+    </div>
+  </section>
+
+  <!-- ═══ 21 ═══════════════════════════════════════════════════════════ -->
+  <section class="sec" id="s21">
+    <div class="sec-head"><span class="n">21</span><h2>Capability security: designing for a compromised model</h2></div>
+
+    <p class="lede">There is no known way to make a model reliably ignore instructions embedded in the data it reads. So stop trying to. Architect so that a fully compromised model still cannot cause harm.</p>
+
+    <p>This is the shift from <em>detection</em> (filters, classifiers, "ignore injected instructions" prompts — all useful, none sufficient) to <em>containment</em>: deterministic code outside the model decides what is permitted, and the model's output is a request, never an authorisation.</p>
+
+    <h3>The dual-LLM pattern</h3>
+    <p>Split the system by trust. A <strong>privileged</strong> model plans and calls tools but never sees untrusted content. A <strong>quarantined</strong> model reads the untrusted content but has no tools at all, and returns only structured data. The privileged model refers to that data through symbolic handles — <code>$var_3</code> — and can pass it to tools without ever reading it. An injection in the source can therefore change a <em>value</em>, but it can never reach the component that chooses actions.</p>
+
+    <figure class="dia">
+      <div class="frame">
+      <svg viewBox="0 0 880 210" role="img" aria-label="Dual-LLM pattern: untrusted content reaches only a quarantined model with no tools; the privileged planner sees symbolic handles and its tool calls pass through a policy engine.">
+        <rect class="svg-box" x="8" y="120" width="150" height="46" rx="3" stroke-dasharray="4 3"/>
+        <text class="svg-t-sm" x="83" y="140" text-anchor="middle">untrusted content</text>
+        <text class="svg-t-sm" x="83" y="156" text-anchor="middle">web · email · docs</text>
+
+        <line class="svg-line" x1="160" y1="143" x2="212" y2="143" marker-end="url(#ar)"/>
+
+        <rect class="svg-box" x="216" y="112" width="156" height="62" rx="3"/>
+        <text class="svg-t" x="294" y="136" text-anchor="middle">QUARANTINED LLM</text>
+        <text class="svg-t-sm" x="294" y="154" text-anchor="middle">no tools · no memory</text>
+        <text class="svg-t-sm" x="294" y="168" text-anchor="middle">returns typed data only</text>
+
+        <path class="svg-line" d="M294 110 L294 78 L392 78" marker-end="url(#ar)"/>
+        <rect x="300" y="56" width="120" height="18" fill="var(--surface)" stroke="none"/>
+        <text class="svg-t-sm" x="360" y="70" text-anchor="middle">$var_3 (opaque)</text>
+
+        <rect class="svg-box-a" x="216" y="20" width="156" height="56" rx="3"/>
+        <text class="svg-t-a" x="294" y="42" text-anchor="middle">PRIVILEGED LLM</text>
+        <text class="svg-t-sm" x="294" y="60" text-anchor="middle">plans · never reads raw</text>
+
+        <line class="svg-line-a" x1="374" y1="48" x2="436" y2="48" marker-end="url(#ara)"/>
+
+        <rect class="svg-box" x="440" y="16" width="148" height="64" rx="3"/>
+        <text class="svg-t" x="514" y="40" text-anchor="middle">POLICY ENGINE</text>
+        <text class="svg-t-sm" x="514" y="57" text-anchor="middle">deterministic code</text>
+        <text class="svg-t-sm" x="514" y="71" text-anchor="middle">taint + capabilities</text>
+
+        <line class="svg-line" x1="590" y1="48" x2="652" y2="48" marker-end="url(#ar)"/>
+        <rect class="svg-box" x="656" y="20" width="128" height="56" rx="3"/>
+        <text class="svg-t" x="720" y="44" text-anchor="middle">TOOLS</text>
+        <text class="svg-t-sm" x="720" y="61" text-anchor="middle">executed for real</text>
+
+        <path class="svg-dash" d="M514 84 L514 130 L800 130"/>
+        <text class="svg-t-sm" x="522" y="126">denied: tainted value → external send</text>
+
+        <line class="svg-dash" x1="8" y1="192" x2="872" y2="192"/>
+        <text class="svg-t-sm" x="8" y="206">an injection can change what $var_3 contains — it can never change which tool is called, or where the result is allowed to go</text>
+      </svg>
+      </div>
+      <figcaption>Fig. 3 — Containment, not detection. The trust boundary is architectural.</figcaption>
+    </figure>
+
+    <h3>Taint tracking and capabilities</h3>
+    <p>The stronger version: have the planner emit an explicit program describing the data flow, then run it through an interpreter that enforces policy on <em>values</em>. Every value carries provenance — where it came from, and who is allowed to see it. The interpreter refuses when a tainted value reaches a sink it isn't cleared for: content from a public web page cannot become the body of an email; a row from tenant A cannot be written to tenant B.</p>
+
+    <p><strong>Capability tokens</strong> apply the same idea to authority. Rather than a tool that can act on any record, the agent holds a capability scoped to the specific records the current task legitimately touches. Even a perfectly-executed injection cannot widen its own scope, because the scope was decided before the untrusted content was ever read.</p>
+
+    <h3>The practical checklist</h3>
+    <ul class="check">
+      <li><b>secrets</b> never in model-visible context — inject at the tool boundary</li>
+      <li><b>egress</b> allowlist domains; block arbitrary URL fetch and webhook posts</li>
+      <li><b>scope</b> per-tool credentials, least privilege, never one shared token</li>
+      <li><b>taint</b> track provenance from untrusted sources to sinks</li>
+      <li><b>policy</b> deterministic rules outside the model, not prompt instructions</li>
+      <li><b>approval</b> show the human the <em>effect</em>, not the JSON payload</li>
+      <li><b>trifecta</b> break one leg: private data · untrusted input · external comms</li>
+      <li><b>audit</b> log every executed call with its arguments and its authoriser</li>
+    </ul>
+
+    <div class="note warn">
+      <span class="label">Watch the approval fatigue curve</span>
+      <p>A gate that fires on every trivial action gets clicked through blindly within a day, at which point it provides zero protection while still annoying everyone. Gate on the small set of genuinely irreversible actions, describe the effect in plain language ("email 4,200 customers"), and make the safe path the default. A rarely-shown dialogue that people actually read beats a constant one they don't.</p>
+    </div>
+  </section>
+
+  <!-- ═══ 22 ═══════════════════════════════════════════════════════════ -->
+  <section class="sec" id="s22">
+    <div class="sec-head"><span class="n">22</span><h2>Improving the agent over time</h2></div>
+
+    <p>Shipping is the start. The systems that get good are the ones with a loop from production traces back into the prompt, the tools, and eventually the weights.</p>
+
+    <h3>The loop that always works</h3>
+    <p>Read traces → find a failure class → add it as an eval case → change one thing → re-run the suite → ship if it improved and nothing regressed. Unglamorous, and it beats every clever technique below for the first several months of a system's life. The discipline that makes it work is that every fix becomes a permanent test.</p>
+
+    <h3>Automated prompt optimisation</h3>
+    <p>Once you have a metric and a labelled set, the prompt itself becomes a parameter you can search. Two approaches worth knowing: <strong>bootstrapped few-shot</strong> — mine your successful traces for exemplars and select the subset that maximises the metric, which is often a large win for near-zero effort; and <strong>reflective evolutionary search</strong> (the DSPy/GEPA family) — propose prompt mutations, score them, keep what wins, using an LLM's critique of failures to propose the next mutation. Both require a trustworthy metric first. With a noisy metric, you are just overfitting to your own judge.</p>
+
+    <h3>Learning from trajectories</h3>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Method</th><th>Needs</th><th>Gets you</th></tr></thead>
+        <tbody>
+          <tr><td>Rejection-sampled fine-tuning</td><td>A verifier + a strong teacher model</td><td>Generate many trajectories, keep only verified-correct ones, SFT a small model on them. The cheapest real quality/cost win on a narrow task.</td></tr>
+          <tr><td>Preference tuning (DPO and kin)</td><td>Paired better/worse trajectories</td><td>Sharpens style and format adherence; weaker for capability</td></tr>
+          <tr><td>RL on the environment</td><td>A real environment + programmatic reward</td><td>Genuine capability gains where reward is verifiable — code that must pass tests, tasks with a checkable end state. Expensive and easy to reward-hack.</td></tr>
+          <tr><td>Learned routers</td><td>Logged difficulty vs outcome</td><td>A small classifier that picks the cheap or expensive path; often pays for itself immediately</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>The prerequisite for all of these is the same as for §15: <strong>a verifier you trust</strong>. If you can programmatically check success, every technique above opens up. If you can't, invest there first — it is the highest-leverage thing you can build, and it also gives you your eval suite for free.</p>
+
+    <h3>Procedural memory, carefully</h3>
+    <p>Agents can accumulate learned rules — "this customer's ids are prefixed differently", "never run the migration tool without a backup" — into a growing instructions file. It works, and it drifts: contradictory rules pile up, one-off corrections become permanent policy, and nobody notices the file is now 4,000 tokens of accreted folklore. Version it, review it like code, and re-run the eval suite whenever it changes.</p>
+
+    <div class="note">
+      <span class="label">Rollout discipline</span>
+      <p>Prompt and model changes are deploys. Shadow-run the new version against live traffic and diff the trajectories before switching; canary to a small share; keep the previous version one flag away. A model upgrade that improves your benchmark can still break the one tool call your whole product depends on.</p>
+    </div>
+  </section>
+
+  <!-- ═══ 23 ═══════════════════════════════════════════════════════════ -->
+  <section class="sec" id="s23">
+    <div class="sec-head"><span class="n">23</span><h2>Build order — the MCP application</h2></div>
+
+    <p>The sequence for what we build next. Each step is independently verifiable, which is the whole point: when something breaks you know which layer owns it.</p>
+
+    <ol>
+      <li><strong>One stdio server, one tool.</strong> Verify with the Inspector, no model involved. Confirms the protocol works before prompting enters the picture.</li>
+      <li><strong>Add a resource and a prompt.</strong> Feel the difference between model-controlled, app-controlled, and user-controlled — it's the mental model that makes the rest obvious.</li>
+      <li><strong>Write the client.</strong> Connect, list tools, translate schemas, run the §02 loop against them. This is the part that turns an MCP server into an agent.</li>
+      <li><strong>Register it with a host.</strong> Same server, different consumer, zero code changes. That's the M+N payoff, made concrete.</li>
+      <li><strong>Harden the tools.</strong> Tight schemas, guidance-shaped errors, truncation, annotations on the destructive ones.</li>
+      <li><strong>Add guardrails.</strong> Approval gate on writes, argument policy checks, step and token budgets.</li>
+      <li><strong>Add tracing.</strong> Span per LLM call and per tool call, with tokens and cost.</li>
+      <li><strong>Write the eval suite.</strong> Twenty real cases, outcome + trajectory, wired to a command you can run on every change.</li>
+      <li><strong>Serve it over Streamable HTTP</strong> with auth, if it needs to be remote.</li>
+    </ol>
+
+    <p>And once that runs, the Part II moves, in the order they usually start paying off:</p>
+
+    <ol start="10">
+      <li><strong>Make the run durable</strong> (§18) — checkpoint per step, resume by run id, approval as an interrupt rather than a blocked thread. Everything else gets easier to debug once state is data.</li>
+      <li><strong>Add a verifier</strong> (§15, §22) — a programmatic check on the final result. It unlocks best-of-N, honest evals, and every learning technique at once.</li>
+      <li><strong>Type the boundaries</strong> (§16) — one Pydantic model per contract, reasoning fields first, escape hatches everywhere.</li>
+      <li><strong>Watch the cache-hit rate</strong> (§19) — stable prefix, parallel tool calls, cost per successful task on a dashboard.</li>
+      <li><strong>Contain, don't detect</strong> (§21) — taint boundaries and a deterministic policy check before any tool executes.</li>
+      <li><strong>Reach for code mode</strong> (§17) when tool schemas crowd the window or results get large enough that the model is doing arithmetic it shouldn't be.</li>
+    </ol>
+
+    <ul class="check">
+      <li><b>stdio</b> never write to stdout — log to stderr</li>
+      <li><b>paths</b> absolute paths in host config</li>
+      <li><b>errors</b> execution failures as <code>isError</code>, not JSON-RPC errors</li>
+      <li><b>schemas</b> enums and patterns over free strings</li>
+      <li><b>budgets</b> steps, tokens, and seconds — all three</li>
+      <li><b>cache</b> stable prefix first, volatile last</li>
+      <li><b>approval</b> gate every irreversible action</li>
+      <li><b>traces</b> on before the first real user</li>
+    </ul>
+
+    <p>Ready when you are — say the word and we'll start at step one.</p>
+
+    <div class="endnote">
+      <span>Field guide · agentic systems &amp; MCP</span>
+      <span>Protocol details track the MCP spec at modelcontextprotocol.io — check the current revision before pinning</span>
+    </div>
+  </section>
+
+  </main>
+  </div>
+</div>
+</div>
+
+<script>
+(function () {
+  // theme toggle — stamps data-theme so it beats the OS preference either way
+  var btn = document.getElementById('themeToggle');
+  var root = document.documentElement;
+  btn.addEventListener('click', function () {
+    var systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    var current = root.getAttribute('data-theme') || (systemDark ? 'dark' : 'light');
+    root.setAttribute('data-theme', current === 'dark' ? 'light' : 'dark');
+  });
+
+  // scrollspy on the rail
+  var links = Array.prototype.slice.call(document.querySelectorAll('.rail-list a'));
+  var map = {};
+  links.forEach(function (a) { map[a.getAttribute('href').slice(1)] = a; });
+  var sections = Array.prototype.slice.call(document.querySelectorAll('.sec'));
+  if (!('IntersectionObserver' in window)) return;
+
+  var visible = new Set();
+  var obs = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (e.isIntersecting) visible.add(e.target.id); else visible.delete(e.target.id);
+    });
+    var order = sections.map(function (s) { return s.id; }).filter(function (id) { return visible.has(id); });
+    links.forEach(function (a) { a.removeAttribute('aria-current'); });
+    if (order.length && map[order[0]]) map[order[0]].setAttribute('aria-current', 'true');
+  }, { rootMargin: '-10% 0px -70% 0px', threshold: 0 });
+
+  sections.forEach(function (s) { obs.observe(s); });
+})();
+</script>
+</body>
+</html>

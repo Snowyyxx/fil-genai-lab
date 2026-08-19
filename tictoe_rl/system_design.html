@@ -1,0 +1,1439 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Nine Squares, One Q-Function</title>
+<style>
+/* ============================================================
+   TOKENS — light palette on bare :root (complete set)
+   Diverging teal <-> rust, because every diagram in this doc
+   encodes signed value. Neutrals carry a slight teal bias.
+   ============================================================ */
+:root {
+  --bg:        #F6F8F8;
+  --surface:   #FFFFFF;
+  --surface-2: #EDF2F1;
+  --ink:       #141D1C;
+  --muted:     #596967;
+  --faint:     #849694;
+  --rule:      #DBE3E2;
+  --accent:    #0D6E70;
+  --pos:       #0D6E70;
+  --neg:       #AF5127;
+  --gold:      #8C6714;
+  --code-bg:   #F0F4F3;
+  --shadow:    0 1px 2px rgba(20,29,28,.05), 0 8px 24px -18px rgba(20,29,28,.35);
+
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  --font-serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, ui-serif, serif;
+
+  --measure: 68ch;
+  --step: 1.0625rem;
+}
+
+/* System-dark (no stamp) — explicit light choice must still win */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg:        #0E1413;
+    --surface:   #161E1D;
+    --surface-2: #1D2726;
+    --ink:       #E6EDEB;
+    --muted:     #93A5A2;
+    --faint:     #6E807D;
+    --rule:      #283432;
+    --accent:    #52C3BB;
+    --pos:       #52C3BB;
+    --neg:       #E88357;
+    --gold:      #D9AC48;
+    --code-bg:   #121A19;
+    --shadow:    0 1px 2px rgba(0,0,0,.4), 0 8px 24px -18px rgba(0,0,0,.8);
+  }
+}
+/* Explicit dark choice */
+:root[data-theme="dark"] {
+  --bg:        #0E1413;
+  --surface:   #161E1D;
+  --surface-2: #1D2726;
+  --ink:       #E6EDEB;
+  --muted:     #93A5A2;
+  --faint:     #6E807D;
+  --rule:      #283432;
+  --accent:    #52C3BB;
+  --pos:       #52C3BB;
+  --neg:       #E88357;
+  --gold:      #D9AC48;
+  --code-bg:   #121A19;
+  --shadow:    0 1px 2px rgba(0,0,0,.4), 0 8px 24px -18px rgba(0,0,0,.8);
+}
+
+/* ============================================================
+   BASE
+   ============================================================ */
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-serif);
+  font-size: var(--step);
+  line-height: 1.68;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0 clamp(1.1rem, 4vw, 3.5rem) 6rem;
+}
+
+/* Prose column + section rail */
+.layout { display: block; }
+@media (min-width: 1180px) {
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0,1fr) 224px;
+    gap: 4rem;
+    align-items: start;
+  }
+}
+
+main { min-width: 0; }
+
+/* ---------- Typography ---------- */
+h1, h2, h3, h4 {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  text-wrap: balance;
+  margin: 0;
+}
+h1 {
+  font-size: clamp(1.85rem, 4.4vw, 2.6rem);
+  letter-spacing: -0.03em;
+  line-height: 1.12;
+}
+h2 {
+  font-size: 1.32rem;
+  letter-spacing: -0.015em;
+  line-height: 1.3;
+}
+h3 {
+  font-size: 1rem;
+  letter-spacing: -0.005em;
+  color: var(--ink);
+}
+p { margin: 0; }
+
+.lede {
+  font-size: clamp(1.08rem, 2vw, 1.24rem);
+  line-height: 1.6;
+  color: var(--muted);
+  max-width: 60ch;
+}
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: .7rem;
+  font-weight: 600;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+strong { font-weight: 700; color: var(--ink); }
+em { font-style: italic; }
+a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+a:focus-visible, button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+code, kbd, samp, .mono { font-family: var(--font-mono); }
+
+/* inline code */
+p code, li code, td code, th code, dd code, figcaption code, .callout code {
+  font-size: .855em;
+  background: var(--code-bg);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: .06em .34em;
+  white-space: nowrap;
+}
+
+/* ---------- Header ---------- */
+.masthead {
+  padding: clamp(3rem, 9vw, 6rem) 0 2.5rem;
+  border-bottom: 1px solid var(--rule);
+  display: flex;
+  flex-direction: column;
+  gap: 1.4rem;
+}
+.masthead-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+.stamp {
+  font-family: var(--font-mono);
+  font-size: .7rem;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border: 1px solid var(--rule);
+  background: var(--surface);
+  border-radius: 999px;
+  padding: .3rem .8rem;
+  white-space: nowrap;
+}
+
+/* ---------- Sections ---------- */
+section { padding-top: 3.6rem; scroll-margin-top: 1.5rem; }
+.sec-head {
+  display: flex;
+  gap: .9rem;
+  align-items: baseline;
+  border-top: 2px solid var(--ink);
+  padding-top: .85rem;
+  margin-bottom: 1.5rem;
+}
+.sec-num {
+  font-family: var(--font-mono);
+  font-size: .82rem;
+  font-weight: 600;
+  color: var(--accent);
+  flex: none;
+  padding-top: .18em;
+  font-variant-numeric: tabular-nums;
+}
+.prose > * + * { margin-top: 1.1rem; }
+.prose p, .prose ul, .prose ol { max-width: var(--measure); }
+.prose ul, .prose ol { padding-left: 1.3rem; }
+.prose li + li { margin-top: .5rem; }
+.prose li::marker { color: var(--faint); }
+
+h3 { margin-top: 2.2rem !important; margin-bottom: -.35rem !important; }
+h3 + p, h3 + ul, h3 + ol, h3 + .callout, h3 + figure, h3 + .tablewrap, h3 + pre { margin-top: .8rem !important; }
+
+/* ---------- Callouts ---------- */
+.callout {
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--accent);
+  background: var(--surface);
+  border-radius: 4px;
+  padding: 1rem 1.15rem;
+  max-width: var(--measure);
+  box-shadow: var(--shadow);
+}
+.callout.warn { border-left-color: var(--neg); }
+.callout.note { border-left-color: var(--gold); }
+.callout .eyebrow { display: block; margin-bottom: .4rem; }
+.callout > p + p { margin-top: .7rem; }
+.callout p { font-size: .96rem; }
+
+/* ---------- Decision panel ---------- */
+.decisions {
+  margin-top: 2.4rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(215px, 1fr));
+  gap: 1px;
+  background: var(--rule);
+  border: 1px solid var(--rule);
+  border-radius: 5px;
+  overflow: hidden;
+}
+.decision { background: var(--surface); padding: 1rem 1.1rem; }
+.decision dt {
+  font-family: var(--font-mono);
+  font-size: .68rem;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin-bottom: .4rem;
+}
+.decision dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: .87rem;
+  line-height: 1.45;
+  color: var(--ink);
+  font-weight: 600;
+}
+.decision dd span {
+  display: block;
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: .84rem;
+  color: var(--muted);
+  margin-top: .35rem;
+  line-height: 1.5;
+}
+
+/* ---------- Code ---------- */
+pre {
+  margin: 0;
+  background: var(--code-bg);
+  border: 1px solid var(--rule);
+  border-radius: 5px;
+  padding: 1rem 1.15rem;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: .815rem;
+  line-height: 1.62;
+  color: var(--ink);
+  tab-size: 2;
+}
+pre .c { color: var(--faint); }        /* comment  */
+pre .k { color: var(--accent); }       /* keyword  */
+pre .s { color: var(--gold); }         /* string   */
+pre .hl { color: var(--neg); font-weight: 700; }
+pre .ok { color: var(--pos); font-weight: 700; }
+
+.codehead {
+  font-family: var(--font-mono);
+  font-size: .68rem;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--faint);
+  background: var(--surface-2);
+  border: 1px solid var(--rule);
+  border-bottom: none;
+  border-radius: 5px 5px 0 0;
+  padding: .45rem .9rem;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.codehead + pre { border-radius: 0 0 5px 5px; }
+
+/* ---------- Tables ---------- */
+.tablewrap {
+  overflow-x: auto;
+  border: 1px solid var(--rule);
+  border-radius: 5px;
+  background: var(--surface);
+}
+table {
+  border-collapse: collapse;
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: .8rem;
+  line-height: 1.5;
+}
+th, td {
+  text-align: left;
+  padding: .6rem .85rem;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: top;
+}
+thead th {
+  font-size: .66rem;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--faint);
+  font-weight: 600;
+  background: var(--surface-2);
+  white-space: nowrap;
+}
+tbody tr:last-child td { border-bottom: none; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+td .note { display: block; font-family: var(--font-serif); font-size: .84rem; color: var(--muted); margin-top: .2rem; line-height: 1.45; }
+td:first-child { color: var(--ink); font-weight: 600; white-space: nowrap; }
+.tag {
+  display: inline-block;
+  font-size: .65rem;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  padding: .12rem .42rem;
+  border-radius: 3px;
+  border: 1px solid currentColor;
+  font-weight: 600;
+}
+.tag.pick { color: var(--pos); }
+.tag.skip { color: var(--faint); }
+
+/* ---------- Figures ---------- */
+figure {
+  margin: 0;
+  padding: 1.3rem 0 0;
+}
+.figbox {
+  border: 1px solid var(--rule);
+  background: var(--surface);
+  border-radius: 5px;
+  padding: 1.3rem;
+  overflow-x: auto;
+  box-shadow: var(--shadow);
+}
+figure svg { display: block; width: 100%; min-width: 460px; height: auto; }
+figcaption {
+  font-family: var(--font-serif);
+  font-size: .87rem;
+  line-height: 1.55;
+  color: var(--muted);
+  margin-top: .75rem;
+  max-width: 66ch;
+}
+figcaption b { color: var(--ink); font-family: var(--font-mono); font-size: .82rem; font-weight: 600; }
+
+/* SVG element classes — theme-safe, tokens only */
+.d-box    { fill: var(--surface-2); stroke: var(--rule); stroke-width: 1.4; }
+.d-box-a  { fill: var(--surface-2); stroke: var(--accent); stroke-width: 1.8; }
+.d-box-n  { fill: var(--surface-2); stroke: var(--neg); stroke-width: 1.8; }
+.d-zone   { fill: none; stroke: var(--faint); stroke-width: 1.2; stroke-dasharray: 6 5; }
+.d-t      { fill: var(--ink); font-family: var(--font-mono); font-size: 13px; font-weight: 600; }
+.d-s      { fill: var(--muted); font-family: var(--font-mono); font-size: 10.5px; }
+.d-e      { stroke: var(--muted); stroke-width: 1.5; fill: none; }
+.d-e.pos  { stroke: var(--pos); stroke-width: 2; }
+.d-e.neg  { stroke: var(--neg); stroke-width: 2; }
+.d-e.dash { stroke-dasharray: 5 4; }
+.d-el     { fill: var(--muted); font-family: var(--font-mono); font-size: 10.5px; }
+.d-el.pos { fill: var(--pos); font-weight: 600; }
+.d-el.neg { fill: var(--neg); font-weight: 600; }
+.d-cell   { fill: var(--surface); stroke: var(--rule); stroke-width: 1.2; }
+.mk       { fill: var(--muted); }
+.mk-pos   { fill: var(--pos); }
+.mk-neg   { fill: var(--neg); }
+
+/* ---------- Q-value board ---------- */
+.boardfig {
+  display: flex;
+  gap: clamp(1.4rem, 4vw, 2.8rem);
+  align-items: center;
+  flex-wrap: wrap;
+}
+.qboard {
+  display: grid;
+  grid-template-columns: repeat(3, 82px);
+  grid-template-rows: repeat(3, 82px);
+  gap: 4px;
+  background: var(--rule);
+  padding: 4px;
+  border-radius: 4px;
+  flex: none;
+}
+.qcell {
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: .1rem;
+  border-radius: 2px;
+  font-family: var(--font-mono);
+  transition: transform .16s ease;
+}
+.qcell .mark { font-size: 1.75rem; font-weight: 600; line-height: 1; }
+.qcell .mark.x { color: var(--ink); }
+.qcell .mark.o { color: var(--faint); }
+.qcell .q { font-size: .82rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.qcell .idx { font-size: .58rem; color: var(--faint); letter-spacing: .06em; }
+.qcell.win  { background: color-mix(in oklab, var(--pos) 30%, var(--surface)); }
+.qcell.win  .q { color: color-mix(in oklab, var(--pos) 85%, var(--ink)); }
+.qcell.mid  { background: color-mix(in oklab, var(--pos) 8%, var(--surface)); }
+.qcell.mid  .q { color: var(--muted); }
+.qcell.bad  { background: color-mix(in oklab, var(--neg) 22%, var(--surface)); }
+.qcell.bad  .q { color: color-mix(in oklab, var(--neg) 85%, var(--ink)); }
+.qcell.taken { background: var(--surface-2); }
+.qcell:hover { transform: scale(1.04); }
+@media (prefers-reduced-motion: reduce) {
+  .qcell { transition: none; }
+  .qcell:hover { transform: none; }
+}
+.qlegend { font-size: .9rem; color: var(--muted); max-width: 34ch; }
+.qlegend p + p { margin-top: .7rem; }
+.scale {
+  display: flex; align-items: center; gap: .5rem;
+  font-family: var(--font-mono); font-size: .68rem; color: var(--faint);
+  margin-top: .9rem; letter-spacing: .05em;
+}
+.scale .bar {
+  height: 9px; flex: 1; border-radius: 999px;
+  background: linear-gradient(90deg,
+    color-mix(in oklab, var(--neg) 55%, var(--surface)),
+    var(--surface-2),
+    color-mix(in oklab, var(--pos) 55%, var(--surface)));
+  border: 1px solid var(--rule);
+}
+
+/* ---------- Formula ---------- */
+.formula {
+  font-family: var(--font-mono);
+  font-size: clamp(.88rem, 2vw, 1.02rem);
+  background: var(--code-bg);
+  border: 1px solid var(--rule);
+  border-radius: 5px;
+  padding: 1rem 1.2rem;
+  overflow-x: auto;
+  max-width: var(--measure);
+  line-height: 1.9;
+}
+.formula .sign { color: var(--neg); font-weight: 700; font-size: 1.15em; }
+.formula .lbl { color: var(--faint); font-size: .8em; }
+
+/* ---------- File tree ---------- */
+.tree { font-size: .78rem; line-height: 1.75; }
+.tree .c { color: var(--faint); }
+.tree .d { color: var(--accent); font-weight: 600; }
+.tree .n { color: var(--neg); font-weight: 600; }
+
+/* ---------- Checklist ---------- */
+.checks { list-style: none; padding: 0 !important; max-width: var(--measure); }
+.checks li {
+  display: grid;
+  grid-template-columns: 1.6rem 1fr;
+  gap: .35rem;
+  padding: .8rem 0;
+  border-bottom: 1px solid var(--rule);
+  margin: 0 !important;
+  font-size: .96rem;
+}
+.checks li:last-child { border-bottom: none; }
+.checks .n {
+  font-family: var(--font-mono);
+  font-size: .74rem;
+  color: var(--neg);
+  font-weight: 700;
+  padding-top: .3em;
+  font-variant-numeric: tabular-nums;
+}
+.checks b { display: block; font-family: var(--font-mono); font-size: .85rem; margin-bottom: .1rem; }
+
+/* ---------- Rail ---------- */
+.rail { display: none; }
+@media (min-width: 1180px) {
+  .rail {
+    display: block;
+    position: sticky;
+    top: 2rem;
+    padding-top: 3.6rem;
+    font-family: var(--font-mono);
+    font-size: .755rem;
+    line-height: 1.45;
+  }
+  .rail .eyebrow { display: block; margin-bottom: .8rem; padding-bottom: .55rem; border-bottom: 1px solid var(--rule); }
+  .rail ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .1rem; }
+  .rail a {
+    display: grid;
+    grid-template-columns: 1.5rem 1fr;
+    text-decoration: none;
+    color: var(--muted);
+    padding: .32rem 0;
+    border-radius: 3px;
+  }
+  .rail a:hover { color: var(--accent); }
+  .rail a span:first-child { color: var(--faint); font-variant-numeric: tabular-nums; }
+}
+
+/* ---------- Footer ---------- */
+footer {
+  margin-top: 4.5rem;
+  padding-top: 1.4rem;
+  border-top: 1px solid var(--rule);
+  font-family: var(--font-mono);
+  font-size: .73rem;
+  color: var(--faint);
+  letter-spacing: .04em;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="masthead">
+  <div class="masthead-top">
+    <span class="eyebrow">tictoe_rl &nbsp;/&nbsp; system design</span>
+    <span class="stamp">Design doc — no code written yet</span>
+  </div>
+  <h1>Nine Squares, One Q-Function</h1>
+  <p class="lede">A deep Q-network that learns tic-tac-toe from scratch by playing itself, is graded against a perfect minimax oracle, then ships to AWS Fargate as a 170&nbsp;MB container with no ML framework inside it.</p>
+
+  <dl class="decisions">
+    <div class="decision">
+      <dt>Training</dt>
+      <dd>Shared-net self-play<span>One network plays both seats on a canonical board, with the negamax target.</span></dd>
+    </div>
+    <div class="decision">
+      <dt>Serving runtime</dt>
+      <dd>NumPy only<span>Train in PyTorch, export weights to <code>.npz</code>, forward pass is three matmuls.</span></dd>
+    </div>
+    <div class="decision">
+      <dt>Play mode</dt>
+      <dd>Browser board UI<span>Click to move; every empty square shows the agent's Q-value, heat-mapped.</span></dd>
+    </div>
+    <div class="decision">
+      <dt>Deployment</dt>
+      <dd>ECS Fargate<span>Staged idempotent <code>deploy.py</code>, public IP, no load balancer.</span></dd>
+    </div>
+  </dl>
+</header>
+
+<div class="layout">
+<main>
+
+<!-- ══════════════════════════════════════════════════ 1 -->
+<section id="s1">
+  <div class="sec-head"><span class="sec-num">1</span><h2>What we are building, and the honest caveat</h2></div>
+  <div class="prose">
+
+  <p>Three things share one board implementation: a <strong>training mode</strong> that plays hundreds of thousands of games against itself, an <strong>evaluation harness</strong> that grades the result against perfect play, and a <strong>play mode</strong> that serves the frozen policy over HTTP so a human can try to beat it.</p>
+
+  <div class="callout warn">
+    <span class="eyebrow">Read this before writing a line</span>
+    <p>Tic-tac-toe has <strong>5,478 reachable board positions</strong> — 765 once you collapse the eight rotations and reflections. That is small enough to store in a Python dict. Tabular Q-learning solves it exactly, and minimax solves it <em>perfectly with zero training</em>. As an engineering solution to the game, a deep Q-network is unambiguously overkill.</p>
+    <p>It is an excellent <em>teaching</em> vehicle for exactly that reason. Because a perfect oracle is cheap to compute, every claim the network makes can be checked against ground truth — not "the loss went down" but "the greedy policy matches an optimal move in 99.4% of all 5,478 states." That turns each DQN component into a measurable contribution instead of an article of faith. We build it as specified and lean hard on the oracle.</p>
+  </div>
+
+  <p>The pipeline is linear, and each stage hands the next a file on disk. That boundary is what lets the deployed container carry no PyTorch at all.</p>
+
+  <figure>
+    <div class="figbox">
+      <svg viewBox="0 0 1110 190" role="img" aria-label="Five-stage pipeline: self-play training in PyTorch produces dqn.pt, exported to policy.npz, loaded by a NumPy FastAPI service, copied into a slim Docker image, and run on ECS Fargate.">
+        <defs>
+          <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" class="mk" />
+          </marker>
+        </defs>
+
+        <rect class="d-box-a" x="0"   y="50" width="150" height="80" rx="4" />
+        <text class="d-t" x="75"  y="82"  text-anchor="middle">train.py</text>
+        <text class="d-s" x="75"  y="100" text-anchor="middle">self-play DQN</text>
+        <text class="d-s" x="75"  y="115" text-anchor="middle">PyTorch · CPU</text>
+
+        <rect class="d-box" x="240" y="50" width="150" height="80" rx="4" />
+        <text class="d-t" x="315" y="82"  text-anchor="middle">export</text>
+        <text class="d-s" x="315" y="100" text-anchor="middle">weights.py</text>
+        <text class="d-s" x="315" y="115" text-anchor="middle">torch → NumPy</text>
+
+        <rect class="d-box" x="480" y="50" width="150" height="80" rx="4" />
+        <text class="d-t" x="555" y="82"  text-anchor="middle">main.py</text>
+        <text class="d-s" x="555" y="100" text-anchor="middle">FastAPI +</text>
+        <text class="d-s" x="555" y="115" text-anchor="middle">policy.py</text>
+
+        <rect class="d-box" x="720" y="50" width="150" height="80" rx="4" />
+        <text class="d-t" x="795" y="82"  text-anchor="middle">Dockerfile</text>
+        <text class="d-s" x="795" y="100" text-anchor="middle">python:3.11-slim</text>
+        <text class="d-s" x="795" y="115" text-anchor="middle">no torch</text>
+
+        <rect class="d-box-a" x="960" y="50" width="150" height="80" rx="4" />
+        <text class="d-t" x="1035" y="82"  text-anchor="middle">Fargate</text>
+        <text class="d-s" x="1035" y="100" text-anchor="middle">0.25 vCPU</text>
+        <text class="d-s" x="1035" y="115" text-anchor="middle">public IP</text>
+
+        <line class="d-e" x1="156" y1="90" x2="234" y2="90" marker-end="url(#a1)" />
+        <text class="d-el" x="195" y="78" text-anchor="middle">dqn.pt</text>
+
+        <line class="d-e" x1="396" y1="90" x2="474" y2="90" marker-end="url(#a1)" />
+        <text class="d-el" x="435" y="78" text-anchor="middle">policy.npz</text>
+
+        <line class="d-e" x1="636" y1="90" x2="714" y2="90" marker-end="url(#a1)" />
+        <text class="d-el" x="675" y="78" text-anchor="middle">COPY</text>
+
+        <line class="d-e" x1="876" y1="90" x2="954" y2="90" marker-end="url(#a1)" />
+        <text class="d-el" x="915" y="78" text-anchor="middle">ECR push</text>
+
+        <text class="d-s" x="195" y="152" text-anchor="middle">~20k params</text>
+        <text class="d-s" x="675" y="152" text-anchor="middle">3 matmuls / request</text>
+        <text class="d-s" x="1035" y="152" text-anchor="middle">≈ $9 / month</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig. 1</b> — The export step is load-bearing. Everything left of <code>policy.npz</code> is a training concern and never enters the image; everything right of it needs only NumPy, which is what keeps the container at roughly 170&nbsp;MB instead of 2.5&nbsp;GB.</figcaption>
+  </figure>
+
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════ 2 -->
+<section id="s2">
+  <div class="sec-head"><span class="sec-num">2</span><h2>Framing the game as an MDP</h2></div>
+  <div class="prose">
+
+  <p>Before any network exists, the game has to be pinned down as states, actions, and rewards. Two choices here quietly determine whether the rest works.</p>
+
+  <h3>State: canonical, two-plane</h3>
+
+  <p>The board is <em>always encoded from the perspective of whoever is about to move</em>. Plane&nbsp;0 marks the mover's own pieces, plane&nbsp;1 marks the opponent's. The network never learns "X" or "O" — it learns "me" and "them", which is why a single set of weights can play both seats and learn from every move of every game.</p>
+
+  <p>Two 9-bit planes rather than one 9-cell array of <code>{-1, 0, +1}</code>: it is a wash in expressive power, but the one-hot form removes any implied ordering between "opponent, empty, mine" and converges more cleanly on a small net.</p>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Element</th><th>Definition</th><th>Shape / range</th></tr></thead>
+      <tbody>
+        <tr><td>State <code>s</code></td><td>Two binary planes over 9 cells, from the mover's view<span class="note">plane 0 = my marks, plane 1 = their marks; a cell is 0 in both planes when empty</span></td><td>float32[18]</td></tr>
+        <tr><td>Action <code>a</code></td><td>Index of the cell to claim<span class="note">occupied cells are masked out, never punished</span></td><td>int 0–8</td></tr>
+        <tr><td>Reward <code>r</code></td><td>+1 my move completes a line · −1 the opponent's reply completes one · 0 draw or non-terminal<span class="note">assigned to the player who moved, not to the ply</span></td><td>{−1, 0, +1}</td></tr>
+        <tr><td>Terminal</td><td>Three in a line, or nine cells filled</td><td>bool</td></tr>
+        <tr><td>Episode</td><td>One complete game</td><td>5–9 plies</td></tr>
+        <tr><td>Discount γ</td><td>0.95<span class="note">below 1.0 so a win in two moves is worth more than the same win in four — it breaks ties toward decisive play</span></td><td>scalar</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Reward attribution: per player, not per ply</h3>
+
+  <p>The reward for winning lands on the player who made the <em>last</em> move, and the matching −1 lands on their opponent's <em>previous</em> move. So the loop buffers each player's pending transition and only commits it once the consequence is known — either the opponent has replied (giving a real <code>s′</code>) or the game has ended (giving a terminal reward). Writing transitions ply-by-ply as they happen mislabels the loser's final blunder as reward&nbsp;0.</p>
+
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════ 3 -->
+<section id="s3">
+  <div class="sec-head"><span class="sec-num">3</span><h2>The sign flip that makes or breaks it</h2></div>
+  <div class="prose">
+
+  <p>This is the single most important section in the document. Tic-tac-toe is a two-player zero-sum game, and the textbook single-agent Bellman target is <strong>wrong</strong> for it — not approximate, not suboptimal, actively counterproductive.</p>
+
+  <p>The reason is structural. You act in state <code>s</code>, and the state you land in, <code>s′</code>, has your <em>opponent</em> to move. The quantity <code>max Q(s′, a′)</code> is therefore the best outcome available <em>to them</em>. Adding it to your target teaches the network to steer toward positions its opponent loves.</p>
+
+  <figure>
+    <div class="figbox">
+      <svg viewBox="0 0 980 400" role="img" aria-label="Diagram showing that the state after your move belongs to the opponent, so the correct temporal-difference target subtracts the discounted max Q of the next state rather than adding it.">
+        <defs>
+          <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" class="mk" />
+          </marker>
+        </defs>
+
+        <text class="d-s" x="0" y="16">ply sequence — note whose turn each state belongs to</text>
+
+        <rect class="d-box-a" x="0"   y="34" width="250" height="76" rx="4" />
+        <text class="d-t" x="125" y="64"  text-anchor="middle">s</text>
+        <text class="d-s" x="125" y="83"  text-anchor="middle">YOU to move</text>
+        <text class="d-s" x="125" y="98"  text-anchor="middle">canonical: +1 = you</text>
+
+        <rect class="d-box-n" x="365" y="34" width="250" height="76" rx="4" />
+        <text class="d-t" x="490" y="64"  text-anchor="middle">s′</text>
+        <text class="d-s" x="490" y="83"  text-anchor="middle">OPPONENT to move</text>
+        <text class="d-s" x="490" y="98"  text-anchor="middle">canonical: +1 = them</text>
+
+        <rect class="d-box-a" x="730" y="34" width="250" height="76" rx="4" />
+        <text class="d-t" x="855" y="64"  text-anchor="middle">s″</text>
+        <text class="d-s" x="855" y="83"  text-anchor="middle">YOU again</text>
+
+        <line class="d-e" x1="256" y1="72" x2="359" y2="72" marker-end="url(#a2)" />
+        <text class="d-el" x="307" y="60" text-anchor="middle">your a, r</text>
+
+        <line class="d-e" x1="621" y1="72" x2="724" y2="72" marker-end="url(#a2)" />
+        <text class="d-el" x="672" y="60" text-anchor="middle">their best reply</text>
+
+        <line class="d-e dash" x1="490" y1="116" x2="490" y2="176" marker-end="url(#a2)" />
+        <text class="d-el" x="500" y="152">max Q(s′, a′) is measured here</text>
+
+        <!-- wrong -->
+        <rect class="d-box-n" x="0" y="196" width="460" height="176" rx="4" />
+        <text class="d-t d-el neg" x="24" y="228" style="font-size:13px;font-weight:700;">✗  single-agent target</text>
+        <text class="d-t" x="24" y="266" style="font-size:15px;">y = r + γ · max Q(s′, a′)</text>
+        <text class="d-s" x="24" y="298">Maximises the value of a position that</text>
+        <text class="d-s" x="24" y="316">belongs to the opponent. The agent learns</text>
+        <text class="d-s" x="24" y="334">to hand them good boards and plateaus</text>
+        <text class="d-s" x="24" y="352">just above random play.</text>
+
+        <!-- right -->
+        <rect class="d-box-a" x="520" y="196" width="460" height="176" rx="4" />
+        <text class="d-t d-el pos" x="544" y="228" style="font-size:13px;font-weight:700;">✓  negamax target</text>
+        <text class="d-t" x="544" y="266" style="font-size:15px;">y = r <tspan class="d-el neg" style="font-size:19px;font-weight:700;">−</tspan> γ · max Q(s′, a′)</text>
+        <text class="d-s" x="544" y="298">Same quantity, negated. In a zero-sum game</text>
+        <text class="d-s" x="544" y="316">their best is exactly your worst, so one</text>
+        <text class="d-s" x="544" y="334">shared network can evaluate both seats</text>
+        <text class="d-s" x="544" y="352">without ever knowing which side it is.</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig. 2</b> — One character separates a network that converges to perfect play from one that stalls near random. If training curves look flat, check this before touching a hyperparameter.</figcaption>
+  </figure>
+
+  <div class="formula">
+<span class="lbl">terminal transition — nothing follows, so do not bootstrap</span><br />
+y = r<br /><br />
+<span class="lbl">non-terminal transition — negamax</span><br />
+y = r <span class="sign">−</span> γ · max<sub>a′ ∈ legal(s′)</sub> Q<sub>θ⁻</sub>(s′, a′)
+  </div>
+
+  <p>The terminal case is not a footnote here. Games last five to nine plies, so a large fraction of every sampled batch is terminal; bootstrapping off a finished board injects noise into precisely the transitions that carry the only real reward signal in the whole problem.</p>
+
+  <div class="callout note">
+    <span class="eyebrow">Equivalent framing</span>
+    <p>You will also see this written as an "afterstate" or delayed-transition formulation, where the transition is stored only once the opponent has replied and <code>s″</code> is used with a <code>+</code> sign. The two are algebraically the same. Negamax on a canonical board is chosen here because it keeps the replay buffer homogeneous and the sign convention visible in one line of code.</p>
+  </div>
+
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════ 4 -->
+<section id="s4">
+  <div class="sec-head"><span class="sec-num">4</span><h2>The network and the legality mask</h2></div>
+  <div class="prose">
+
+  <p>The network is deliberately small: an 18→128→128→9 MLP with ReLU activations and a linear head, <strong>20,105 parameters</strong> in total. It is sized to be trainable on a laptop CPU in minutes and small enough that its full weight set fits in a file you can read.</p>
+
+  <p>Illegal moves are handled by <em>masking</em>, never by penalty. Occupied cells are set to −∞ before any <code>argmax</code>, in both places it appears: choosing an action, and taking the <code>max</code> over next actions inside the target. Teaching legality with a −10 reward wastes capacity relearning a rule the board already knows, and it drags the value scale away from the meaningful ±1 range.</p>
+
+  <figure>
+    <div class="figbox">
+      <svg viewBox="0 0 1000 300" role="img" aria-label="Network diagram: two 3-by-3 binary planes flatten into an 18-dimensional vector, pass through two 128-unit ReLU layers to a 9-unit linear head, then illegal cells are masked to negative infinity before the argmax.">
+        <defs>
+          <marker id="a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" class="mk" />
+          </marker>
+        </defs>
+
+        <!-- plane 0 -->
+        <text class="d-s" x="10" y="52">plane 0 — my marks</text>
+        <rect class="d-cell" x="10"  y="62" width="26" height="26" />
+        <rect class="d-cell" x="38"  y="62" width="26" height="26" />
+        <rect class="d-cell" x="66"  y="62" width="26" height="26" />
+        <rect class="d-cell" x="10"  y="90" width="26" height="26" />
+        <rect class="d-cell" x="38"  y="90" width="26" height="26" />
+        <rect class="d-cell" x="66"  y="90" width="26" height="26" />
+        <rect class="d-cell" x="10"  y="118" width="26" height="26" />
+        <rect class="d-cell" x="38"  y="118" width="26" height="26" />
+        <rect class="d-cell" x="66"  y="118" width="26" height="26" />
+        <text class="d-s" x="23" y="80" text-anchor="middle">1</text>
+        <text class="d-s" x="51" y="80" text-anchor="middle">1</text>
+        <text class="d-s" x="79" y="80" text-anchor="middle">0</text>
+        <text class="d-s" x="23" y="108" text-anchor="middle">0</text>
+        <text class="d-s" x="51" y="108" text-anchor="middle">0</text>
+        <text class="d-s" x="79" y="108" text-anchor="middle">0</text>
+        <text class="d-s" x="23" y="136" text-anchor="middle">0</text>
+        <text class="d-s" x="51" y="136" text-anchor="middle">0</text>
+        <text class="d-s" x="79" y="136" text-anchor="middle">0</text>
+
+        <!-- plane 1 -->
+        <text class="d-s" x="10" y="180">plane 1 — their marks</text>
+        <rect class="d-cell" x="10"  y="190" width="26" height="26" />
+        <rect class="d-cell" x="38"  y="190" width="26" height="26" />
+        <rect class="d-cell" x="66"  y="190" width="26" height="26" />
+        <rect class="d-cell" x="10"  y="218" width="26" height="26" />
+        <rect class="d-cell" x="38"  y="218" width="26" height="26" />
+        <rect class="d-cell" x="66"  y="218" width="26" height="26" />
+        <rect class="d-cell" x="10"  y="246" width="26" height="26" />
+        <rect class="d-cell" x="38"  y="246" width="26" height="26" />
+        <rect class="d-cell" x="66"  y="246" width="26" height="26" />
+        <text class="d-s" x="23" y="208" text-anchor="middle">0</text>
+        <text class="d-s" x="51" y="208" text-anchor="middle">0</text>
+        <text class="d-s" x="79" y="208" text-anchor="middle">0</text>
+        <text class="d-s" x="23" y="236" text-anchor="middle">1</text>
+        <text class="d-s" x="51" y="236" text-anchor="middle">1</text>
+        <text class="d-s" x="79" y="236" text-anchor="middle">0</text>
+        <text class="d-s" x="23" y="264" text-anchor="middle">0</text>
+        <text class="d-s" x="51" y="264" text-anchor="middle">0</text>
+        <text class="d-s" x="79" y="264" text-anchor="middle">0</text>
+
+        <path class="d-e" d="M 100 100 L 130 100 L 130 165 L 160 165" marker-end="url(#a3)" />
+        <path class="d-e" d="M 100 228 L 130 228 L 130 165 L 160 165" />
+
+        <rect class="d-box" x="166" y="130" width="112" height="70" rx="4" />
+        <text class="d-t" x="222" y="160" text-anchor="middle" style="font-size:12px;">concat</text>
+        <text class="d-s" x="222" y="178" text-anchor="middle">float32[18]</text>
+
+        <line class="d-e" x1="284" y1="165" x2="322" y2="165" marker-end="url(#a3)" />
+
+        <rect class="d-box" x="328" y="118" width="118" height="94" rx="4" />
+        <text class="d-t" x="387" y="152" text-anchor="middle" style="font-size:12px;">Dense 128</text>
+        <text class="d-s" x="387" y="170" text-anchor="middle">ReLU</text>
+        <text class="d-s" x="387" y="186" text-anchor="middle">2,432 params</text>
+
+        <line class="d-e" x1="452" y1="165" x2="490" y2="165" marker-end="url(#a3)" />
+
+        <rect class="d-box" x="496" y="118" width="118" height="94" rx="4" />
+        <text class="d-t" x="555" y="152" text-anchor="middle" style="font-size:12px;">Dense 128</text>
+        <text class="d-s" x="555" y="170" text-anchor="middle">ReLU</text>
+        <text class="d-s" x="555" y="186" text-anchor="middle">16,512 params</text>
+
+        <line class="d-e" x1="620" y1="165" x2="658" y2="165" marker-end="url(#a3)" />
+
+        <rect class="d-box-a" x="664" y="118" width="118" height="94" rx="4" />
+        <text class="d-t" x="723" y="152" text-anchor="middle" style="font-size:12px;">Dense 9</text>
+        <text class="d-s" x="723" y="170" text-anchor="middle">linear</text>
+        <text class="d-s" x="723" y="186" text-anchor="middle">1,161 params</text>
+
+        <line class="d-e" x1="788" y1="165" x2="826" y2="165" marker-end="url(#a3)" />
+        <text class="d-el" x="807" y="153" text-anchor="middle">Q[9]</text>
+
+        <rect class="d-box-n" x="832" y="118" width="158" height="94" rx="4" />
+        <text class="d-t" x="911" y="150" text-anchor="middle" style="font-size:12px;">mask → argmax</text>
+        <text class="d-s" x="911" y="170" text-anchor="middle">Q[occupied] = −∞</text>
+        <text class="d-s" x="911" y="188" text-anchor="middle">from engine.legal(s)</text>
+
+        <text class="d-s" x="990" y="240" text-anchor="end">total: 20,105 parameters · 82 KB as float32</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig. 3</b> — The mask sits <em>outside</em> the network, so the same nine raw outputs are reused unmodified by the browser UI to render its heatmap. The network is never asked to learn the rules of the board, only their consequences.</figcaption>
+  </figure>
+
+  <h3>Hyperparameters</h3>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Knob</th><th class="num">Value</th><th>Why this value</th></tr></thead>
+      <tbody>
+        <tr><td>Hidden layers</td><td class="num">128, 128</td><td>Comfortably over-parameterised for 5,478 states; the bottleneck is exploration, not capacity</td></tr>
+        <tr><td>Optimiser</td><td class="num">Adam 1e-3</td><td>Standard; the problem is too small to need a schedule</td></tr>
+        <tr><td>Loss</td><td class="num">Huber (SmoothL1)</td><td>Bounded gradient when a terminal ±1 collides with a stale bootstrap estimate</td></tr>
+        <tr><td>Replay capacity</td><td class="num">50,000</td><td>≈ 7,000 games of history — old enough to decorrelate, young enough to reflect current play</td></tr>
+        <tr><td>Batch size</td><td class="num">256</td><td>Large relative to the state space, so each step sees a broad slice of the board distribution</td></tr>
+        <tr><td>Warmup</td><td class="num">1,000</td><td>Transitions collected before the first gradient step</td></tr>
+        <tr><td>Target sync</td><td class="num">every 500 steps</td><td>Hard copy. Too frequent and the target chases itself; too rare and it goes stale within an epoch</td></tr>
+        <tr><td>ε schedule</td><td class="num">1.00 → 0.05</td><td>Linear over the first 60% of games, then held. <strong>Epoch 0 is literally random self-play</strong></td></tr>
+        <tr><td>Gradient clip</td><td class="num">norm 10</td><td>Cheap insurance against a rare exploding batch</td></tr>
+        <tr><td>Games</td><td class="num">200,000</td><td>≈ 1.4M transitions. No GPU needed — expect minutes, not hours, on CPU</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════ 5 -->
+<section id="s5">
+  <div class="sec-head"><span class="sec-num">5</span><h2>The self-play training loop</h2></div>
+  <div class="prose">
+
+  <p>One network, one optimiser, one replay buffer. The environment alternates seats and hands back a canonical board each time, so the network is simply asked "here is a position from your point of view — what is each move worth?" without ever being told which colour it is playing.</p>
+
+  <figure>
+    <div class="figbox">
+      <svg viewBox="0 0 1160 410" role="img" aria-label="Training loop: the self-play environment writes transitions to a replay buffer, batches are sampled into a Huber TD loss computed against a frozen target network, gradients update the online network, and the online network both supplies epsilon-greedy actions back to the environment and is hard-copied into the target network every 500 steps.">
+        <defs>
+          <marker id="a4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" class="mk" />
+          </marker>
+        </defs>
+
+        <rect class="d-box-a" x="20"  y="50" width="210" height="76" rx="4" />
+        <text class="d-t" x="125" y="80"  text-anchor="middle">Self-play env</text>
+        <text class="d-s" x="125" y="98"  text-anchor="middle">engine.py</text>
+        <text class="d-s" x="125" y="114" text-anchor="middle">canonical board</text>
+
+        <rect class="d-box" x="330" y="50" width="210" height="76" rx="4" />
+        <text class="d-t" x="435" y="80"  text-anchor="middle">Replay buffer</text>
+        <text class="d-s" x="435" y="98"  text-anchor="middle">deque · 50,000</text>
+        <text class="d-s" x="435" y="114" text-anchor="middle">uniform sampling</text>
+
+        <rect class="d-box" x="640" y="50" width="210" height="76" rx="4" />
+        <text class="d-t" x="745" y="80"  text-anchor="middle">Huber TD loss</text>
+        <text class="d-s" x="745" y="98"  text-anchor="middle">y vs Q(s, a)</text>
+        <text class="d-s" x="745" y="114" text-anchor="middle">batch 256</text>
+
+        <rect class="d-box-a" x="950" y="50" width="210" height="76" rx="4" />
+        <text class="d-t" x="1055" y="80"  text-anchor="middle">Online net Q</text>
+        <text class="d-s" x="1055" y="98"  text-anchor="middle">18→128→128→9</text>
+        <text class="d-s" x="1055" y="114" text-anchor="middle">Adam 1e-3</text>
+
+        <rect class="d-box" x="640" y="250" width="210" height="76" rx="4" />
+        <text class="d-t" x="745" y="280"  text-anchor="middle">Target net Q⁻</text>
+        <text class="d-s" x="745" y="298"  text-anchor="middle">frozen copy</text>
+        <text class="d-s" x="745" y="314"  text-anchor="middle">no gradients</text>
+
+        <line class="d-e" x1="236" y1="88" x2="324" y2="88" marker-end="url(#a4)" />
+        <text class="d-el" x="280" y="76" text-anchor="middle">(s,a,r,s′,done)</text>
+
+        <line class="d-e" x1="546" y1="88" x2="634" y2="88" marker-end="url(#a4)" />
+        <text class="d-el" x="590" y="76" text-anchor="middle">sample 256</text>
+
+        <line class="d-e" x1="856" y1="88" x2="944" y2="88" marker-end="url(#a4)" />
+        <text class="d-el" x="900" y="76" text-anchor="middle">∇θ · Adam</text>
+
+        <line class="d-e neg" x1="745" y1="244" x2="745" y2="132" marker-end="url(#a4)" />
+        <text class="d-el neg" x="757" y="180">y = r − γ·max Q⁻(s′,·)</text>
+        <text class="d-s" x="757" y="196">masked over legal(s′)</text>
+
+        <path class="d-e dash" d="M 1010 132 L 1010 288 L 856 288" marker-end="url(#a4)" />
+        <text class="d-el" x="1022" y="272">hard copy</text>
+        <text class="d-s" x="1022" y="288">every 500 steps</text>
+
+        <path class="d-e pos" d="M 1055 132 L 1055 372 L 125 372 L 125 132" marker-end="url(#a4)" />
+        <text class="d-el pos" x="590" y="392" text-anchor="middle">ε-greedy action — argmax over legal cells, ε → 0.05</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig. 4</b> — The dashed edge is the only thing separating this from unstable Q-learning: the bootstrap target comes from a frozen snapshot, so the network is not chasing a value estimate that moves with every gradient step.</figcaption>
+  </figure>
+
+  <div class="codehead"><span>train.py — inner loop</span><span>pseudocode</span></div>
+  <pre><span class="c"># One game. The env hands back canonical boards, so `s` is always "my view".</span>
+s, pending = env.reset(), {}          <span class="c"># pending[player] = (s, a) awaiting outcome</span>
+<span class="k">while not</span> env.done:
+    p  = env.to_move
+    a  = eps_greedy(online, s, env.legal_mask(), eps)
+    s2, r, done = env.step(a)         <span class="c"># s2 is canonical for the OTHER player</span>
+
+    <span class="c"># Commit this player's PREVIOUS move now that its consequence is known.</span>
+    <span class="k">if</span> p <span class="k">in</span> pending:
+        ps, pa = pending[p]
+        buffer.push(ps, pa, <span class="hl">-r</span>, s, <span class="k">False</span>)   <span class="c"># opponent's r hurts us</span>
+    pending[p] = (s, a)
+
+    <span class="k">if</span> done:                          <span class="c"># terminal: flush BOTH seats, no bootstrap</span>
+        buffer.push(s, a, r, <span class="k">None</span>, <span class="k">True</span>)
+        <span class="k">if</span> opp(p) <span class="k">in</span> pending:
+            os_, oa = pending[opp(p)]
+            buffer.push(os_, oa, <span class="hl">-r</span>, <span class="k">None</span>, <span class="k">True</span>)
+    s = s2
+
+<span class="c"># ---- one gradient step per environment step ----</span>
+S, A, R, S2, D = buffer.sample(256)
+<span class="k">with</span> torch.no_grad():
+    q2 = target(S2).masked_fill(~legal(S2), <span class="hl">-inf</span>).max(1).values
+    y  = R + (~D) * (<span class="ok">-GAMMA</span> * q2)     <span class="c"># NEGAMAX: minus, and zeroed when terminal</span>
+loss = huber(online(S).gather(1, A).squeeze(1), y)
+loss.backward(); clip_grad_norm_(online.parameters(), 10); opt.step()
+
+<span class="k">if</span> step % 500 == 0:
+    target.load_state_dict(online.state_dict())</pre>
+
+  <div class="callout note">
+    <span class="eyebrow">Optional, and worth it</span>
+    <p><strong>Dihedral augmentation.</strong> Every board has eight equivalent forms under rotation and reflection, and the Q-values transform with them. Pushing all eight into the replay buffer multiplies effective data roughly eightfold for a few lines of index arithmetic, and it removes the mild positional bias that otherwise shows up as the agent preferring one corner over its mirror image.</p>
+  </div>
+
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════ 6 -->
+<section id="s6">
+  <div class="sec-head"><span class="sec-num">6</span><h2>Grading against a perfect oracle</h2></div>
+  <div class="prose">
+
+  <p>Loss curves in Q-learning are close to uninformative — the target is non-stationary, so the loss can drop while the policy gets worse. Because the game is small, we can do far better than proxy metrics: enumerate the state space and compare against a solved answer.</p>
+
+  <p><code>minimax.py</code> is a memoised full-game solver, a few dozen lines, no learning involved. It exists only to grade, never to train, and it is not shipped in the container.</p>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Metric</th><th>Method</th><th>Target</th><th>Reads as</th></tr></thead>
+      <tbody>
+        <tr><td>Win rate vs random</td><td>2,000 games, agent seated as X then as O</td><td class="num">&gt; 92% as X</td><td>Basic competence. Reached early and then stops moving — do not tune on it</td></tr>
+        <tr><td>Losses vs random</td><td>same games</td><td class="num">0</td><td>Any loss to a random opponent means blocking is unreliable</td></tr>
+        <tr><td>Draw rate vs minimax</td><td>Perfect opponent, both seats, ε&nbsp;=&nbsp;0</td><td class="num">100%</td><td><strong>The headline number.</strong> Tic-tac-toe is a draw under perfect play, so a single loss is a real, locatable defect</td></tr>
+        <tr><td>Policy agreement</td><td>All 5,478 reachable states; is <code>argmax Q</code> in the minimax-optimal set?</td><td class="num">&gt; 99%</td><td><strong>The strongest signal.</strong> Covers states self-play rarely visits, which is exactly where a DQN hides its gaps</td></tr>
+        <tr><td>Value calibration</td><td>Mean <code>|Q(s,a*) − minimax(s)|</code> over the same states</td><td class="num">&lt; 0.15</td><td>Whether it knows a won position from a drawn one, or merely ranks moves correctly</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>The last two are the ones worth watching. Policy agreement is scored over <em>every</em> reachable state, not just the on-policy ones, so it catches the classic failure where an agent plays its favourite opening perfectly and falls apart in positions self-play under-sampled. When a run disagrees with the oracle, <code>evaluate.py</code> prints the offending boards — usually a small, related family, and usually diagnostic.</p>
+
+  <div class="callout">
+    <span class="eyebrow">Expected shape of a healthy run</span>
+    <p>Win-rate against random saturates fast and is uninformative after that. Draw-rate against minimax is the metric that moves late: it typically sits well below 100% long after the random-opponent numbers look finished, then closes over the final third of training as ε anneals and the buffer fills with competent play rather than noise.</p>
+  </div>
+
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════ 7 -->
+<section id="s7">
+  <div class="sec-head"><span class="sec-num">7</span><h2>Serving: export, then three matmuls</h2></div>
+  <div class="prose">
+
+  <p>Training is finished, weights are frozen, and there is nothing left for an autograd engine to do. <code>export_weights.py</code> pulls the six arrays out of the checkpoint and writes them to <code>model/policy.npz</code>; <code>policy.py</code> reloads them and runs the forward pass in NumPy.</p>
+
+  <div class="codehead"><span>policy.py — the entire inference engine</span><span>no torch</span></div>
+  <pre><span class="k">import</span> numpy <span class="k">as</span> np
+
+W = np.load(<span class="s">"model/policy.npz"</span>)
+
+<span class="k">def</span> q_values(state18):
+    h = np.maximum(0.0, state18 @ W[<span class="s">"w1"</span>] + W[<span class="s">"b1"</span>])   <span class="c"># ReLU</span>
+    h = np.maximum(0.0, h        @ W[<span class="s">"w2"</span>] + W[<span class="s">"b2"</span>])   <span class="c"># ReLU</span>
+    <span class="k">return</span>             h        @ W[<span class="s">"w3"</span>] + W[<span class="s">"b3"</span>]    <span class="c"># linear head, shape (9,)</span>
+
+<span class="k">def</span> choose(state18, legal):
+    q = q_values(state18).copy()
+    q[~legal] = -np.inf                            <span class="c"># mask, never punish</span>
+    <span class="k">return</span> int(q.argmax()), q</pre>
+
+  <p>That is the whole runtime. It is readable in one sitting, has no framework to version-pin, no CUDA probe on import, and a cold start measured in milliseconds — which matters on Fargate, where a slow import is a slow deployment.</p>
+
+  <h3>What the browser shows</h3>
+
+  <p>The UI returns all nine raw Q-values alongside the chosen move, so the board doubles as an inspection tool. Below is the position after <code>X</code> takes the top row's left two cells while <code>O</code> builds the middle row — <code>X</code> to move.</p>
+
+  <figure>
+    <div class="figbox">
+      <div class="boardfig">
+        <div class="qboard" role="img" aria-label="Tic-tac-toe board with X on cells 0 and 1, O on cells 3 and 4, X to move. Cell 2 scores plus 0.98, cell 5 scores plus 0.12, and cells 6, 7 and 8 score around minus 0.95.">
+          <div class="qcell taken"><span class="mark x">X</span></div>
+          <div class="qcell taken"><span class="mark x">X</span></div>
+          <div class="qcell win"><span class="q">+0.98</span><span class="idx">cell 2</span></div>
+          <div class="qcell taken"><span class="mark o">O</span></div>
+          <div class="qcell taken"><span class="mark o">O</span></div>
+          <div class="qcell mid"><span class="q">+0.12</span><span class="idx">cell 5</span></div>
+          <div class="qcell bad"><span class="q">−0.94</span><span class="idx">cell 6</span></div>
+          <div class="qcell bad"><span class="q">−0.96</span><span class="idx">cell 7</span></div>
+          <div class="qcell bad"><span class="q">−0.93</span><span class="idx">cell 8</span></div>
+        </div>
+        <div class="qlegend">
+          <p><strong>Cell 2</strong> completes <code>X</code>'s top row and ends the game — the only move worth close to +1.</p>
+          <p><strong>Cell 5</strong> blocks <code>O</code>'s middle row. It throws away an immediate win but does not lose, so it lands near zero.</p>
+          <p><strong>Cells 6–8</strong> ignore both facts; <code>O</code> then plays cell 5 and wins. All three sit near −1, and their small spread is ordinary function-approximation noise.</p>
+          <div class="scale"><span>−1 lost</span><span class="bar"></span><span>+1 won</span></div>
+        </div>
+      </div>
+    </div>
+    <figcaption><b>Fig. 5</b> — Illustrative values for the position shown, chosen to match what a converged network produces; the three tiers (win now / merely survive / blunder) are what the heatmap makes visible. Exposing raw Q-values is the difference between a demo and a teaching tool.</figcaption>
+  </figure>
+
+  <figure>
+    <div class="figbox">
+      <svg viewBox="0 0 1080 260" role="img" aria-label="Request flow: the browser posts a board to FastAPI, which validates it, runs the NumPy forward pass, masks illegal cells and takes the argmax, then returns the action with all nine Q-values.">
+        <defs>
+          <marker id="a5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" class="mk" />
+          </marker>
+        </defs>
+
+        <rect class="d-box-a" x="20"  y="40" width="200" height="76" rx="4" />
+        <text class="d-t" x="120" y="70"  text-anchor="middle">Board UI</text>
+        <text class="d-s" x="120" y="88"  text-anchor="middle">static/index.html</text>
+        <text class="d-s" x="120" y="104" text-anchor="middle">human clicks a cell</text>
+
+        <rect class="d-box" x="300" y="40" width="200" height="76" rx="4" />
+        <text class="d-t" x="400" y="70"  text-anchor="middle">FastAPI</text>
+        <text class="d-s" x="400" y="88"  text-anchor="middle">POST /api/move</text>
+        <text class="d-s" x="400" y="104" text-anchor="middle">validate + encode</text>
+
+        <rect class="d-box" x="580" y="40" width="200" height="76" rx="4" />
+        <text class="d-t" x="680" y="70"  text-anchor="middle">policy.py</text>
+        <text class="d-s" x="680" y="88"  text-anchor="middle">3 matmuls</text>
+        <text class="d-s" x="680" y="104" text-anchor="middle">NumPy · ε = 0</text>
+
+        <rect class="d-box-a" x="860" y="40" width="200" height="76" rx="4" />
+        <text class="d-t" x="960" y="70"  text-anchor="middle">mask + argmax</text>
+        <text class="d-s" x="960" y="88"  text-anchor="middle">engine.legal()</text>
+        <text class="d-s" x="960" y="104" text-anchor="middle">apply + score game</text>
+
+        <line class="d-e" x1="226" y1="78" x2="294" y2="78" marker-end="url(#a5)" />
+        <text class="d-el" x="260" y="66" text-anchor="middle">board[9]</text>
+
+        <line class="d-e" x1="506" y1="78" x2="574" y2="78" marker-end="url(#a5)" />
+        <text class="d-el" x="540" y="66" text-anchor="middle">float32[18]</text>
+
+        <line class="d-e" x1="786" y1="78" x2="854" y2="78" marker-end="url(#a5)" />
+        <text class="d-el" x="820" y="66" text-anchor="middle">Q[9]</text>
+
+        <path class="d-e pos" d="M 960 122 L 960 206 L 120 206 L 120 122" marker-end="url(#a5)" />
+        <text class="d-el pos" x="540" y="228" text-anchor="middle">{ action, q_values[9] with null for occupied, board, status, line }</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig. 6</b> — Occupied cells come back as <code>null</code> rather than a number, so masking is visible in the API payload itself and the UI does not have to re-derive which cells were legal.</figcaption>
+  </figure>
+
+  <h3>Endpoints</h3>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Method</th><th>Path</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td>GET</td><td><code>/</code></td><td>The board UI — one self-contained HTML file, no build step</td></tr>
+        <tr><td>GET</td><td><code>/health</code></td><td>Liveness for the Docker <code>HEALTHCHECK</code> and ECS. Returns <code>{"status":"ok","weights_loaded":true}</code></td></tr>
+        <tr><td>POST</td><td><code>/api/new</code></td><td>Start a game. Body <code>{"human_plays":"X"|"O"}</code>; if the agent moves first, its opening move comes back with the response</td></tr>
+        <tr><td>POST</td><td><code>/api/move</code></td><td>Body <code>{"board":["X","","O",...], "player":"X"}</code>. Returns the agent's reply, all nine Q-values, the updated board, game status and winning line</td></tr>
+        <tr><td>GET</td><td><code>/api/model</code></td><td>Games trained, evaluation results from the last <code>evaluate.py</code> run, weight-file hash</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>The server is stateless: the client owns the board and posts the full position each time. No sessions, no sticky routing, and horizontal scaling is a matter of raising the desired task count.</p>
+
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════ 8 -->
+<section id="s8">
+  <div class="sec-head"><span class="sec-num">8</span><h2>The container</h2></div>
+  <div class="prose">
+
+  <p>The image contains four Python files, a 82&nbsp;KB weight file and one HTML page. It does not contain PyTorch, the training loop, the minimax solver or the checkpoints.</p>
+
+  <div class="codehead"><span>Dockerfile</span><span>python:3.11-slim</span></div>
+  <pre><span class="k">FROM</span> python:3.11-slim
+<span class="k">WORKDIR</span> /app
+
+<span class="c"># Deps first — this layer caches unless requirements.txt changes.</span>
+<span class="c"># NOTE: fastapi, uvicorn, numpy. Deliberately NOT torch.</span>
+<span class="k">COPY</span> requirements.txt .
+<span class="k">RUN</span> pip install --no-cache-dir -r requirements.txt
+
+<span class="k">COPY</span> engine.py policy.py main.py ./
+<span class="k">COPY</span> model/policy.npz ./model/policy.npz
+<span class="k">COPY</span> static/ ./static/
+
+<span class="k">RUN</span> useradd -m appuser
+<span class="k">USER</span> appuser
+<span class="k">EXPOSE</span> 8000
+
+<span class="k">HEALTHCHECK</span> --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD python -c <span class="s">"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health').status==200 else 1)"</span>
+
+<span class="c"># No credentials in the image, and this app needs none at runtime —</span>
+<span class="c"># the weights are baked in and it calls no AWS service.</span>
+<span class="k">CMD</span> [<span class="s">"uvicorn"</span>, <span class="s">"main:app"</span>, <span class="s">"--host"</span>, <span class="s">"0.0.0.0"</span>, <span class="s">"--port"</span>, <span class="s">"8000"</span>]</pre>
+
+  <h3>Why the runtime choice mattered</h3>
+
+  <p>A plain <code>pip install torch</code> resolves to CUDA-enabled wheels and drags roughly two gigabytes of GPU libraries onto a Fargate task that has no GPU. It works, and it is slow and expensive in every dimension that matters — image pull time, ECR storage, cold start.</p>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Runtime</th><th class="num">Approx. image</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><span class="tag skip">skip</span> torch, default index</td><td class="num">~2.5 GB</td><td>Ships CUDA libraries to a CPU-only task. Slow pulls, slow rollouts</td></tr>
+        <tr><td><span class="tag skip">skip</span> torch, CPU index</td><td class="num">~370 MB</td><td><code>--index-url https://download.pytorch.org/whl/cpu</code>. Reasonable; still a framework for three matmuls</td></tr>
+        <tr><td><span class="tag skip">skip</span> onnxruntime</td><td class="num">~250 MB</td><td>Portable and standard, but adds an export format and toolchain for a 20k-parameter MLP</td></tr>
+        <tr><td><span class="tag pick">chosen</span> NumPy only</td><td class="num">~170 MB</td><td>Base image is most of it. Inference is readable in nine lines</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="mono" style="font-size:.8rem;color:var(--faint);">Sizes are estimates for planning; confirm with <code>docker images</code> after the first build.</p>
+
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════ 9 -->
+<section id="s9">
+  <div class="sec-head"><span class="sec-num">9</span><h2>Deploying to ECS Fargate</h2></div>
+  <div class="prose">
+
+  <p>Same shape as <code>aws-mcp-agent</code>: an idempotent <code>deploy.py</code> driven by boto3, callable one stage at a time, safe to re-run. One structural difference is worth calling out.</p>
+
+  <div class="callout">
+    <span class="eyebrow">This app needs no AWS permissions at runtime</span>
+    <p><code>aws-mcp-agent</code> needed a task role because the container calls Bedrock. Here the weights are baked into the image and the app talks to nothing — so the <strong>task role is empty or omitted entirely</strong>. Only the <em>execution</em> role is required, and that belongs to the ECS agent (pull from ECR, write logs), not to your code. Fewer permissions, less to reason about.</p>
+  </div>
+
+  <figure>
+    <div class="figbox">
+      <svg viewBox="0 0 1000 560" role="img" aria-label="Deployment: your machine pushes an image to ECR; the ECS execution role pulls it into a Fargate task running in a public subnet behind a security group open on port 8000; the task writes logs to CloudWatch and serves HTTP directly to the browser over its public IP.">
+        <defs>
+          <marker id="a6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" class="mk" />
+          </marker>
+        </defs>
+
+        <rect class="d-box" x="40"  y="30" width="210" height="80" rx="4" />
+        <text class="d-t" x="145" y="62"  text-anchor="middle">Your machine</text>
+        <text class="d-s" x="145" y="80"  text-anchor="middle">docker build</text>
+        <text class="d-s" x="145" y="96"  text-anchor="middle">deployer IAM user</text>
+
+        <rect class="d-box" x="390" y="30" width="210" height="80" rx="4" />
+        <text class="d-t" x="495" y="62"  text-anchor="middle">Amazon ECR</text>
+        <text class="d-s" x="495" y="80"  text-anchor="middle">tictoe-rl:latest</text>
+        <text class="d-s" x="495" y="96"  text-anchor="middle">eu-north-1</text>
+
+        <line class="d-e" x1="256" y1="70" x2="384" y2="70" marker-end="url(#a6)" />
+        <text class="d-el" x="320" y="58" text-anchor="middle">docker push</text>
+
+        <rect class="d-zone" x="40" y="170" width="900" height="230" rx="6" />
+        <text class="d-s" x="58" y="192">Default VPC · public subnet · eu-north-1a</text>
+
+        <rect class="d-zone" x="90" y="210" width="430" height="150" rx="5" />
+        <text class="d-s" x="106" y="232">SG tictoe-rl-sg · ingress :8000 from 0.0.0.0/0</text>
+
+        <rect class="d-box-a" x="125" y="250" width="360" height="86" rx="4" />
+        <text class="d-t" x="305" y="282" text-anchor="middle">ECS Fargate task</text>
+        <text class="d-s" x="305" y="300" text-anchor="middle">tictoe-rl-task · 0.25 vCPU · 0.5 GB</text>
+        <text class="d-s" x="305" y="316" text-anchor="middle">service tictoe-rl-svc · desiredCount 1 · public IP</text>
+
+        <rect class="d-box" x="620" y="250" width="280" height="86" rx="4" />
+        <text class="d-t" x="760" y="282" text-anchor="middle">CloudWatch Logs</text>
+        <text class="d-s" x="760" y="300" text-anchor="middle">/ecs/tictoe-rl</text>
+        <text class="d-s" x="760" y="316" text-anchor="middle">awslogs driver</text>
+
+        <line class="d-e" x1="460" y1="116" x2="460" y2="244" marker-end="url(#a6)" />
+        <text class="d-el" x="472" y="176">image pull</text>
+        <text class="d-s" x="472" y="192">execution role</text>
+
+        <line class="d-e" x1="491" y1="293" x2="614" y2="293" marker-end="url(#a6)" />
+        <text class="d-el" x="552" y="281" text-anchor="middle">stdout</text>
+
+        <rect class="d-box" x="125" y="460" width="360" height="76" rx="4" />
+        <text class="d-t" x="305" y="490" text-anchor="middle">Browser</text>
+        <text class="d-s" x="305" y="508" text-anchor="middle">http://&lt;task-public-ip&gt;:8000</text>
+        <text class="d-s" x="305" y="524" text-anchor="middle">IP changes on every redeploy</text>
+
+        <line class="d-e pos" x1="235" y1="454" x2="235" y2="342" marker-end="url(#a6)" />
+        <text class="d-el pos" x="225" y="404" text-anchor="end">GET / · POST /api/move</text>
+
+        <line class="d-e" x1="375" y1="342" x2="375" y2="454" marker-end="url(#a6)" />
+        <text class="d-el" x="387" y="404">JSON + Q-values</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig. 7</b> — No load balancer, so the public IP changes on every redeploy; <code>python deploy.py url</code> reads the current one. That is the deliberate trade for skipping the ~$16/month an ALB costs — say the word and the design gains a stable hostname.</figcaption>
+  </figure>
+
+  <h3>Resources created</h3>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Stage</th><th>Creates</th><th>Name</th></tr></thead>
+      <tbody>
+        <tr><td><code>ecr</code></td><td>Container registry</td><td><code>tictoe-rl</code></td></tr>
+        <tr><td><code>roles</code></td><td>Execution role only — no task role needed</td><td><code>tictoeExecutionRole</code></td></tr>
+        <tr><td><code>logs</code></td><td>CloudWatch log group, 7-day retention</td><td><code>/ecs/tictoe-rl</code></td></tr>
+        <tr><td><code>cluster</code></td><td>ECS cluster + security group, ingress 8000</td><td><code>tictoe-cluster</code>, <code>tictoe-rl-sg</code></td></tr>
+        <tr><td><code>taskdef</code></td><td>Fargate task definition, 256 CPU / 512 MB</td><td><code>tictoe-rl-task</code></td></tr>
+        <tr><td><code>run</code></td><td>Service with <code>assignPublicIp=ENABLED</code></td><td><code>tictoe-rl-svc</code></td></tr>
+        <tr><td><code>url</code></td><td>Reads back the running task's public IP</td><td>—</td></tr>
+        <tr><td><code>down</code></td><td>desiredCount&nbsp;0 → delete service → delete cluster</td><td>—</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout warn">
+    <span class="eyebrow">Cost — it runs until you stop it</span>
+    <p>A 0.25&nbsp;vCPU / 0.5&nbsp;GB Fargate task running continuously in <code>eu-north-1</code> is roughly <strong>$9 per month</strong>, plus pennies for ECR storage and egress. Nothing scales it to zero on its own. <code>python deploy.py down</code> is the off switch and should be the last command of any demo.</p>
+  </div>
+
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════ 10 -->
+<section id="s10">
+  <div class="sec-head"><span class="sec-num">10</span><h2>Files and commands</h2></div>
+  <div class="prose">
+
+  <div class="codehead"><span>tictoe_rl/</span><span class="mono">red = never enters the image</span></div>
+  <pre class="tree">tictoe_rl/
+├── <span class="d">engine.py</span>              <span class="c"># board rules, win detection, legal mask — zero ML</span>
+├── <span class="n">minimax.py</span>             <span class="c"># memoised perfect solver — grading only</span>
+├── <span class="n">dqn.py</span>                 <span class="c"># network, replay buffer, ε schedule (torch)</span>
+├── <span class="n">train.py</span>               <span class="c"># self-play loop      → checkpoints/dqn.pt</span>
+├── <span class="n">export_weights.py</span>      <span class="c"># torch checkpoint    → model/policy.npz</span>
+├── <span class="n">evaluate.py</span>            <span class="c"># vs-random, vs-minimax, policy agreement</span>
+├── <span class="d">policy.py</span>              <span class="c"># NumPy forward pass + masked argmax</span>
+├── <span class="d">main.py</span>                <span class="c"># FastAPI app</span>
+├── <span class="d">static/index.html</span>      <span class="c"># board UI with Q-value heatmap</span>
+├── <span class="d">model/policy.npz</span>       <span class="c"># exported weights, ~82 KB — committed</span>
+├── <span class="n">checkpoints/dqn.pt</span>     <span class="c"># training artefact — gitignored</span>
+├── <span class="n">requirements-train.txt</span> <span class="c"># torch (CPU index), numpy</span>
+├── <span class="d">requirements.txt</span>       <span class="c"># fastapi, uvicorn, numpy  ← image only</span>
+├── <span class="d">Dockerfile</span>
+├── .dockerignore            <span class="c"># excludes checkpoints/, .venv/, *.py training files</span>
+├── <span class="n">deploy.py</span>              <span class="c"># boto3 ECS Fargate stages</span>
+└── system_design.html       <span class="c"># this document</span></pre>
+
+  <h3>Runbook</h3>
+
+  <div class="codehead"><span>1 — set up and train</span><span>local</span></div>
+  <pre>cd ~/Desktop/code/fil-genai-lab/tictoe_rl
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements-train.txt
+
+<span class="c"># mode 1: self-play. ε starts at 1.0, so early games are pure random play.</span>
+python train.py --games 200000 --eval-every 10000
+<span class="c">#   → checkpoints/dqn.pt, training_log.csv</span>
+
+<span class="c"># grade it against the oracle before trusting anything</span>
+python evaluate.py --ckpt checkpoints/dqn.pt --games 2000 --full-state-sweep
+<span class="c">#   draw rate vs minimax should be 100%; policy agreement > 99%</span>
+
+<span class="c"># freeze for serving</span>
+python export_weights.py --ckpt checkpoints/dqn.pt --out model/policy.npz</pre>
+
+  <div class="codehead"><span>2 — play against it</span><span>local</span></div>
+  <pre>pip install -r requirements.txt
+uvicorn main:app --reload --port 8000
+<span class="c"># open http://127.0.0.1:8000 — click a cell; each empty square shows its Q-value</span>
+
+<span class="c"># or drive it directly</span>
+curl -s localhost:8000/api/move -H <span class="s">'content-type: application/json'</span> \
+  -d <span class="s">'{"board":["X","X","","O","O","","","",""],"player":"X"}'</span> | python -m json.tool</pre>
+
+  <div class="codehead"><span>3 — containerise</span><span>docker</span></div>
+  <pre><span class="c"># Docker Desktop on this machine uses an uninitialised `pass` credsStore;</span>
+<span class="c"># point at the desktop socket explicitly (same fix as aws-mcp-agent).</span>
+export DOCKER_HOST=unix:///home/aduu/.docker/desktop/docker.sock
+
+docker build -t tictoe-rl .
+docker images tictoe-rl                <span class="c"># sanity-check the size claim</span>
+docker run --rm -p 8000:8000 tictoe-rl
+curl -s localhost:8000/health</pre>
+
+  <div class="codehead"><span>4 — ship to Fargate</span><span>aws</span></div>
+  <pre>python deploy.py ecr                   <span class="c"># prints ECR_URI</span>
+
+aws ecr get-login-password --region eu-north-1 \
+  | docker login --username AWS --password-stdin <span class="s">"$ECR_URI"</span>
+docker tag tictoe-rl <span class="s">"$ECR_URI:latest"</span>
+docker push <span class="s">"$ECR_URI:latest"</span>
+
+python deploy.py all                   <span class="c"># roles → logs → cluster → taskdef → run</span>
+python deploy.py url                   <span class="c"># public IP of the running task</span>
+
+aws logs tail /ecs/tictoe-rl --follow --region eu-north-1
+
+<span class="c"># when the demo is over — this is the off switch</span>
+python deploy.py down</pre>
+
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════ 11 -->
+<section id="s11">
+  <div class="sec-head"><span class="sec-num">11</span><h2>Failure modes, in order of likelihood</h2></div>
+  <div class="prose">
+
+  <p>Every item below has a symptom you can actually observe, so a stalled run can be diagnosed rather than guessed at.</p>
+
+  <ol class="checks">
+    <li><span class="n">1</span><div><b>Sign error in the target</b>Using <code>+γ·max Q(s′,·)</code> instead of <code>−</code>. Symptom: draw rate against minimax never rises above chance no matter how long it trains, while loss looks perfectly healthy. Check this first, always.</div></li>
+    <li><span class="n">2</span><div><b>Bootstrapping off terminal states</b>Forgetting the <code>(1 − done)</code> factor. Symptom: values drift well outside ±1 and the agent misjudges won positions.</div></li>
+    <li><span class="n">3</span><div><b>Masking in only one place</b>Masking at action selection but not inside the target's <code>max</code>. Symptom: the agent is competent early but blunders in near-full boards, where illegal cells outnumber legal ones.</div></li>
+    <li><span class="n">4</span><div><b>Reward on the wrong ply</b>Writing transitions as they happen instead of once the consequence is known. Symptom: the agent never learns to block — the losing move was recorded as reward 0.</div></li>
+    <li><span class="n">5</span><div><b>ε driven to zero</b>Self-play with no exploration collapses to one deterministic game repeated forever. Symptom: replay buffer diversity dies, policy agreement stays low on unvisited states. Hold the floor at 0.05 in training; use ε = 0 only at serve time.</div></li>
+    <li><span class="n">6</span><div><b>Target sync mistuned</b>Too frequent and it degenerates to vanilla Q-learning and oscillates; too rare and the bootstrap is stale for whole epochs. 500 steps is a starting point, not a law.</div></li>
+    <li><span class="n">7</span><div><b>CUDA wheels in the image</b><code>pip install torch</code> without the CPU index. Symptom: a 2.5 GB image and multi-minute Fargate pulls. Avoided entirely here by shipping NumPy.</div></li>
+    <li><span class="n">8</span><div><b>Docker credsStore on this machine</b>Desktop's <code>pass</code> store is uninitialised, so ECR login fails opaquely. Fix is the explicit <code>DOCKER_HOST</code> in step 3.</div></li>
+    <li><span class="n">9</span><div><b>Stale public IP</b>No load balancer means the address changes on every redeploy. Re-run <code>deploy.py url</code> rather than trusting a bookmark.</div></li>
+    <li><span class="n">10</span><div><b>The task left running</b>Fargate bills by the second and nothing scales it to zero. <code>deploy.py down</code>.</div></li>
+  </ol>
+
+  <h3>Out of scope, deliberately</h3>
+
+  <p>No terminal play mode — the browser UI covers interactive play, and <code>evaluate.py</code> covers automated checking. No prioritised replay, no duelling or double DQN: each is a worthwhile extension, but adding them before the baseline hits 100% draws against minimax makes it impossible to attribute what helped. No ALB and no HTTPS, which is fine for a demo IP and not fine for anything public.</p>
+
+  <div class="callout">
+    <span class="eyebrow">Next step</span>
+    <p>Build order is <code>engine.py</code> → <code>minimax.py</code> → <code>dqn.py</code> → <code>train.py</code>, because the oracle is what tells you the trainer works. Confirm this design or flag changes, and coding starts there.</p>
+  </div>
+
+  </div>
+</section>
+
+<footer>
+  <span>tictoe_rl · system design · v1</span>
+  <span>fil-genai-lab</span>
+</footer>
+
+</main>
+
+<aside class="rail">
+  <span class="eyebrow">Contents</span>
+  <ol>
+    <li><a href="#s1"><span>1</span><span>What we're building</span></a></li>
+    <li><a href="#s2"><span>2</span><span>Framing the MDP</span></a></li>
+    <li><a href="#s3"><span>3</span><span>The sign flip</span></a></li>
+    <li><a href="#s4"><span>4</span><span>Network &amp; mask</span></a></li>
+    <li><a href="#s5"><span>5</span><span>Training loop</span></a></li>
+    <li><a href="#s6"><span>6</span><span>Grading vs oracle</span></a></li>
+    <li><a href="#s7"><span>7</span><span>Serving</span></a></li>
+    <li><a href="#s8"><span>8</span><span>The container</span></a></li>
+    <li><a href="#s9"><span>9</span><span>Fargate deploy</span></a></li>
+    <li><a href="#s10"><span>10</span><span>Files &amp; commands</span></a></li>
+    <li><a href="#s11"><span>11</span><span>Failure modes</span></a></li>
+  </ol>
+</aside>
+
+</div>
+</div>
+</body>
+</html>

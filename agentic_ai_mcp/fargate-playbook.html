@@ -1,0 +1,1567 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Fargate Playbook</title>
+<style>
+/* ── tokens ───────────────────────────────────────────────────────────── */
+:root{
+  --ground:#EAEBE4;
+  --surface:#F5F6F0;
+  --surface-2:#DFE1D8;
+  --ink:#171B18;
+  --ink-2:#525A54;
+  --ink-3:#7D857E;
+  --rule:#C6C9BF;
+  --rule-soft:#D6D9CF;
+  --acc:#2B4C8C;
+  --acc-ink:#1E3866;
+  --acc-wash:rgba(43,76,140,.09);
+  --amber:#8A5410;
+  --amber-wash:rgba(138,84,16,.10);
+  --code-bg:#181C19;
+  --code-fg:#D9E0DA;
+  --code-dim:#7E8A81;
+  --code-key:#8FB6EE;
+  --code-str:#D6B36A;
+  --code-com:#68746C;
+  --code-ok:#7FC9AE;
+  --shadow:0 1px 0 rgba(23,27,24,.06), 0 8px 24px -18px rgba(23,27,24,.5);
+
+  --font-mono:ui-monospace,"SF Mono",SFMono-Regular,"JetBrains Mono","IBM Plex Mono",Menlo,Consolas,"Liberation Mono",monospace;
+  --font-serif:"Charter","Bitstream Charter","Iowan Old Style","Source Serif 4","Sitka Text",Georgia,"Times New Roman",serif;
+
+  --s--1:.795rem;
+  --s-0:1.0625rem;
+  --s-1:1.22rem;
+  --s-2:1.5rem;
+  --s-3:1.95rem;
+  --s-4:2.5rem;
+  --s-5:3.4rem;
+
+  --col:70ch;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#151814;
+    --surface:#1C211D;
+    --surface-2:#252B26;
+    --ink:#E3E8E1;
+    --ink-2:#9AA39B;
+    --ink-3:#79837B;
+    --rule:#2E352F;
+    --rule-soft:#242A25;
+    --acc:#89A9F0;
+    --acc-ink:#AEC4F6;
+    --acc-wash:rgba(137,169,240,.12);
+    --amber:#DCA55C;
+    --amber-wash:rgba(220,165,92,.12);
+    --code-bg:#0E110F;
+    --code-fg:#D4DCD6;
+    --code-dim:#77837A;
+    --shadow:0 1px 0 rgba(0,0,0,.3), 0 10px 30px -20px rgba(0,0,0,.9);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#151814;
+  --surface:#1C211D;
+  --surface-2:#252B26;
+  --ink:#E3E8E1;
+  --ink-2:#9AA39B;
+  --ink-3:#79837B;
+  --rule:#2E352F;
+  --rule-soft:#242A25;
+  --acc:#89A9F0;
+  --acc-ink:#AEC4F6;
+  --acc-wash:rgba(137,169,240,.12);
+  --amber:#DCA55C;
+  --amber-wash:rgba(220,165,92,.12);
+  --code-bg:#0E110F;
+  --code-fg:#D4DCD6;
+  --code-dim:#77837A;
+  --shadow:0 1px 0 rgba(0,0,0,.3), 0 10px 30px -20px rgba(0,0,0,.9);
+}
+
+/* ── base ─────────────────────────────────────────────────────────────── */
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{animation:none!important;transition:none!important}}
+body{
+  margin:0;background:var(--ground);color:var(--ink);
+  font-family:var(--font-serif);font-size:var(--s-0);line-height:1.66;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:var(--acc);text-decoration:none;border-bottom:1px solid color-mix(in srgb,var(--acc) 35%,transparent)}
+a:hover{border-bottom-color:var(--acc)}
+:focus-visible{outline:2px solid var(--acc);outline-offset:3px;border-radius:2px}
+
+.shell{max-width:1180px;margin:0 auto;padding:0 clamp(1.1rem,4vw,2.5rem)}
+.layout{display:grid;grid-template-columns:1fr;gap:3rem}
+@media (min-width:1080px){.layout{grid-template-columns:232px minmax(0,1fr);gap:4rem;align-items:start}}
+
+/* ── rail ─────────────────────────────────────────────────────────────── */
+.rail{display:none}
+@media (min-width:1080px){
+  .rail{position:sticky;top:0;max-height:100vh;overflow-y:auto;padding:3.2rem 0 3rem;font-family:var(--font-mono);display:block}
+  .rail::-webkit-scrollbar{width:6px}
+  .rail::-webkit-scrollbar-thumb{background:var(--rule);border-radius:3px}
+}
+.rail-head{font-size:.66rem;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3);margin:0 0 1rem;padding-left:.9rem}
+.rail-sub{font-size:.63rem;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3);
+  margin:1.15rem 0 .45rem;padding:.85rem 0 0 .9rem;border-top:1px solid var(--rule)}
+.rail-list{list-style:none;margin:0;padding:0;border-left:1px solid var(--rule)}
+.rail-list a{display:block;padding:.34rem 0 .34rem .9rem;margin-left:-1px;
+  border-left:2px solid transparent;border-bottom:0;font-size:.735rem;line-height:1.35;color:var(--ink-3);
+  transition:color .15s ease,border-color .15s ease}
+.rail-list a:hover{color:var(--ink)}
+.rail-list a .n{opacity:.55;margin-right:.5em}
+.rail-list a[aria-current="true"]{color:var(--acc);border-left-color:var(--acc)}
+.rail-list a[aria-current="true"] .n{opacity:1}
+
+/* ── masthead ─────────────────────────────────────────────────────────── */
+.masthead{padding:clamp(3rem,9vh,6rem) 0 2.4rem}
+.eyebrow{font-family:var(--font-mono);font-size:var(--s--1);letter-spacing:.19em;
+  text-transform:uppercase;color:var(--ink-3);margin:0 0 1.4rem}
+.masthead h1{font-family:var(--font-mono);font-weight:600;
+  font-size:clamp(2rem,6vw,var(--s-5));line-height:1.03;letter-spacing:-.035em;
+  text-wrap:balance;margin:0 0 1.3rem;max-width:20ch}
+.masthead h1 em{font-style:normal;color:var(--acc)}
+.standfirst{font-size:clamp(1.08rem,2.2vw,1.28rem);line-height:1.55;color:var(--ink-2);max-width:58ch;margin:0 0 2rem}
+.meta-row{display:flex;flex-wrap:wrap;gap:.55rem 1.5rem;align-items:center;
+  font-family:var(--font-mono);font-size:var(--s--1);color:var(--ink-3);
+  border-top:1px solid var(--rule);padding-top:1rem}
+.toggle{margin-left:auto;font-family:var(--font-mono);font-size:var(--s--1);
+  background:transparent;border:1px solid var(--rule);color:var(--ink-2);
+  padding:.3rem .7rem;border-radius:2px;cursor:pointer;letter-spacing:.06em}
+.toggle:hover{border-color:var(--acc);color:var(--acc)}
+
+/* ── sections ─────────────────────────────────────────────────────────── */
+main{padding-bottom:6rem}
+.sec{padding-top:3.4rem;scroll-margin-top:1.5rem}
+.sec > *{max-width:var(--col)}
+.sec-head{display:flex;align-items:baseline;gap:.85rem;border-top:1px solid var(--ink);
+  padding-top:.75rem;margin:0 0 1.6rem;max-width:none}
+.sec-head .n{font-family:var(--font-mono);font-size:var(--s--1);color:var(--acc);letter-spacing:.06em;flex:none;padding-top:.35rem}
+.sec-head h2{font-family:var(--font-mono);font-weight:600;font-size:clamp(1.35rem,3.4vw,var(--s-3));
+  letter-spacing:-.028em;line-height:1.12;margin:0;text-wrap:balance}
+h3{font-family:var(--font-mono);font-weight:600;font-size:var(--s-1);
+  letter-spacing:-.015em;line-height:1.25;margin:2.4rem 0 .7rem;text-wrap:balance}
+h4{font-family:var(--font-mono);font-weight:600;font-size:var(--s-0);margin:1.7rem 0 .5rem}
+p{margin:0 0 1.05rem}
+.lede{font-size:var(--s-1);line-height:1.5;color:var(--ink-2)}
+ul,ol{margin:0 0 1.15rem;padding-left:1.25rem}
+li{margin:0 0 .5rem}
+li::marker{color:var(--ink-3)}
+ul.tight li,ol.tight li{margin-bottom:.3rem}
+code{font-family:var(--font-mono);font-size:.86em;background:var(--acc-wash);color:var(--acc-ink);
+  padding:.1em .32em;border-radius:2px;word-break:break-word}
+
+/* ── part divider ─────────────────────────────────────────────────────── */
+.part{margin:5.5rem 0 0;border-top:2px solid var(--ink);padding-top:1rem;
+  display:flex;align-items:baseline;gap:0 1.1rem;flex-wrap:wrap}
+.part .pn{font-family:var(--font-mono);font-size:var(--s--1);letter-spacing:.19em;
+  text-transform:uppercase;color:var(--acc)}
+.part h2{font-family:var(--font-mono);font-weight:600;font-size:clamp(1.5rem,4vw,var(--s-4));
+  letter-spacing:-.032em;line-height:1.1;margin:0}
+.part p{flex-basis:100%;max-width:58ch;color:var(--ink-2);margin:.65rem 0 0;font-size:1.02rem}
+
+/* ── code panels ──────────────────────────────────────────────────────── */
+figure.code{margin:1.5rem 0 1.7rem;max-width:none;border-radius:3px;overflow:hidden;box-shadow:var(--shadow)}
+figure.code figcaption{font-family:var(--font-mono);font-size:var(--s--1);letter-spacing:.06em;
+  background:var(--code-bg);color:var(--code-dim);padding:.55rem .95rem .1rem;
+  display:flex;justify-content:space-between;gap:1rem}
+figure.code figcaption .tag{opacity:.7}
+figure.code pre{margin:0;background:var(--code-bg);color:var(--code-fg);
+  padding:.85rem .95rem 1.05rem;overflow-x:auto;font-family:var(--font-mono);
+  font-size:.815rem;line-height:1.62;tab-size:2}
+figure.code code{background:none;color:inherit;padding:0;font-size:inherit}
+pre .c{color:var(--code-com);font-style:italic}
+pre .k{color:var(--code-key)}
+pre .s{color:var(--code-str)}
+pre .d{color:var(--code-dim)}
+pre .g{color:var(--code-ok)}
+pre .p{color:var(--code-ok);user-select:none}
+
+/* ── tables ───────────────────────────────────────────────────────────── */
+.tablewrap{overflow-x:auto;margin:1.4rem 0 1.8rem;max-width:none;border:1px solid var(--rule);border-radius:3px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:.93rem;min-width:540px}
+th,td{text-align:left;padding:.62rem .85rem;border-bottom:1px solid var(--rule-soft);vertical-align:top}
+thead th{font-family:var(--font-mono);font-size:var(--s--1);font-weight:600;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--ink-3);background:var(--surface-2);border-bottom:1px solid var(--rule)}
+tbody tr:last-child td{border-bottom:0}
+td code{font-size:.83em}
+
+/* ── callouts ─────────────────────────────────────────────────────────── */
+.note{border-left:2px solid var(--acc);background:var(--acc-wash);padding:.85rem 1.1rem;
+  margin:1.4rem 0 1.6rem;border-radius:0 3px 3px 0}
+.note.warn{border-left-color:var(--amber);background:var(--amber-wash)}
+.note p{margin:0}
+.note p + p{margin-top:.6rem}
+.note .label{display:block;font-family:var(--font-mono);font-size:var(--s--1);
+  letter-spacing:.13em;text-transform:uppercase;color:var(--acc-ink);margin-bottom:.35rem}
+.note.warn .label{color:var(--amber)}
+
+/* ── diagrams ─────────────────────────────────────────────────────────── */
+figure.dia{margin:1.8rem 0 2rem;max-width:none}
+figure.dia .frame{overflow-x:auto;border:1px solid var(--rule);border-radius:3px;background:var(--surface);padding:1.1rem}
+figure.dia svg{display:block;width:100%;min-width:560px;height:auto}
+figure.dia figcaption{font-family:var(--font-mono);font-size:var(--s--1);color:var(--ink-3);margin-top:.6rem;line-height:1.45}
+.svg-box{fill:var(--surface-2);stroke:var(--rule)}
+.svg-box-a{fill:var(--acc-wash);stroke:var(--acc)}
+.svg-line{stroke:var(--ink-3);fill:none}
+.svg-line-a{stroke:var(--acc);fill:none}
+.svg-dash{stroke:var(--ink-3);fill:none;stroke-dasharray:4 4}
+.svg-t{fill:var(--ink);font-family:var(--font-mono);font-size:12px}
+.svg-t-sm{fill:var(--ink-3);font-family:var(--font-mono);font-size:10.5px}
+.svg-t-a{fill:var(--acc-ink);font-family:var(--font-mono);font-size:11px}
+
+/* ── stages ───────────────────────────────────────────────────────────── */
+.stages{list-style:none;margin:1.5rem 0 1.9rem;padding:0;max-width:none;
+  display:flex;flex-direction:column;gap:2px}
+.stages li{margin:0;display:grid;grid-template-columns:2.4rem minmax(0,10rem) minmax(0,1fr);
+  gap:.35rem 1.1rem;background:var(--surface);border:1px solid var(--rule);padding:.65rem .9rem}
+.stages li:first-child{border-radius:3px 3px 0 0}
+.stages li:last-child{border-radius:0 0 3px 3px}
+.stages .sn{font-family:var(--font-mono);font-size:.78rem;color:var(--acc);padding-top:.13rem}
+.stages .snm{font-family:var(--font-mono);font-size:.86rem;font-weight:600;letter-spacing:-.01em}
+.stages .sd{font-size:.93rem;color:var(--ink-2);line-height:1.5}
+@media (max-width:660px){.stages li{grid-template-columns:2.2rem minmax(0,1fr)}.stages .sd{grid-column:2}}
+
+/* ── checklist ────────────────────────────────────────────────────────── */
+.check{list-style:none;margin:1.3rem 0 1.8rem;padding:0;max-width:none;
+  display:grid;gap:.1rem;grid-template-columns:repeat(auto-fit,minmax(310px,1fr))}
+.check li{margin:0;padding:.6rem .8rem .6rem 2.1rem;position:relative;
+  font-size:.94rem;line-height:1.45;border-bottom:1px solid var(--rule-soft)}
+.check li::before{content:"";position:absolute;left:.75rem;top:.95rem;
+  width:8px;height:8px;border:1.5px solid var(--acc);border-radius:1px}
+.check li b{font-weight:600;font-family:var(--font-mono);font-size:.88em}
+
+.endnote{margin-top:4rem;border-top:1px solid var(--ink);padding-top:1rem;max-width:none;
+  font-family:var(--font-mono);font-size:var(--s--1);color:var(--ink-3);
+  display:flex;flex-wrap:wrap;gap:.5rem 2rem}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" aria-hidden="true" style="position:absolute">
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="var(--ink-3)"/>
+    </marker>
+    <marker id="ara" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="var(--acc)"/>
+    </marker>
+  </defs>
+</svg>
+
+<div class="shell">
+<div class="layout">
+
+  <nav class="rail" aria-label="Sections">
+    <p class="rail-head">Build</p>
+    <ul class="rail-list">
+      <li><a href="#s01"><span class="n">01</span>The shape</a></li>
+      <li><a href="#s02"><span class="n">02</span>Local first</a></li>
+      <li><a href="#s03"><span class="n">03</span>LiteLLM → Bedrock</a></li>
+      <li><a href="#s04"><span class="n">04</span>FastAPI service</a></li>
+      <li><a href="#s05"><span class="n">05</span>Tic-tac-toe agents</a></li>
+    </ul>
+    <p class="rail-sub">Ship</p>
+    <ul class="rail-list">
+      <li><a href="#s06"><span class="n">06</span>Containerising</a></li>
+      <li><a href="#s07"><span class="n">07</span>IAM: two identities</a></li>
+      <li><a href="#s08"><span class="n">08</span>ECR</a></li>
+      <li><a href="#s09"><span class="n">09</span>Fargate</a></li>
+      <li><a href="#s10"><span class="n">10</span>Frontend on S3</a></li>
+      <li><a href="#s11"><span class="n">11</span>deploy.py</a></li>
+    </ul>
+    <p class="rail-sub">Operate</p>
+    <ul class="rail-list">
+      <li><a href="#s12"><span class="n">12</span>Logs &amp; redeploy</a></li>
+      <li><a href="#s13"><span class="n">13</span>Cost &amp; teardown</a></li>
+      <li><a href="#s14"><span class="n">14</span>Troubleshooting</a></li>
+    </ul>
+  </nav>
+
+  <div>
+  <header class="masthead">
+    <p class="eyebrow">Playbook · FastAPI · LiteLLM · Bedrock · LangGraph · ECS Fargate</p>
+    <h1>Laptop to <em>public URL</em>, one idempotent script.</h1>
+    <p class="standfirst">The full path: containerise a FastAPI + LiteLLM stack, route to any Bedrock model, run a LangGraph supervisor that spawns subagents, push to ECR, and stand up Fargate with the right two IAM roles — plus a frontend on S3 you can update without rebuilding.</p>
+    <div class="meta-row">
+      <span>14 sections · every step runnable</span>
+      <span>Region: eu-north-1</span>
+      <button class="toggle" type="button" id="themeToggle" aria-label="Toggle colour theme">theme</button>
+    </div>
+  </header>
+
+  <main>
+
+  <!-- ═══ 01 ═══════════════════════════════════════════════════════════ -->
+  <section class="sec" id="s01">
+    <div class="sec-head"><span class="n">01</span><h2>The shape</h2></div>
+
+    <p class="lede">Four moving parts and two identities. Get those straight and everything else is mechanics.</p>
+
+    <figure class="dia">
+      <div class="frame">
+      <svg viewBox="0 0 880 340" role="img" aria-label="Architecture: browser loads HTML from S3, calls FastAPI on Fargate, which calls LiteLLM, which calls Bedrock. Deployer user builds infra; task role grants the container Bedrock access.">
+        <rect class="svg-box" x="8" y="34" width="130" height="52" rx="3"/>
+        <text class="svg-t" x="73" y="56" text-anchor="middle">BROWSER</text>
+        <text class="svg-t-sm" x="73" y="72" text-anchor="middle">your users</text>
+
+        <path class="svg-line" d="M73 88 L73 128 L188 128" marker-end="url(#ar)"/>
+        <rect class="svg-box-a" x="192" y="106" width="152" height="46" rx="3"/>
+        <text class="svg-t-a" x="268" y="126" text-anchor="middle">S3 (public)</text>
+        <text class="svg-t-sm" x="268" y="142" text-anchor="middle">frontend.html</text>
+
+        <line class="svg-line" x1="140" y1="60" x2="386" y2="60" marker-end="url(#ar)"/>
+        <text class="svg-t-sm" x="200" y="52">POST /solve  (JSON)</text>
+
+        <rect x="390" y="14" width="482" height="180" rx="4" class="svg-box" fill="none" stroke-dasharray="5 4"/>
+        <text class="svg-t-sm" x="404" y="32">ECS FARGATE TASK  ·  one awsvpc ENI, public IP</text>
+
+        <rect class="svg-box-a" x="404" y="44" width="164" height="62" rx="3"/>
+        <text class="svg-t-a" x="486" y="66" text-anchor="middle">FastAPI</text>
+        <text class="svg-t-sm" x="486" y="82" text-anchor="middle">uvicorn :8000</text>
+        <text class="svg-t-sm" x="486" y="96" text-anchor="middle">LangGraph agents</text>
+
+        <line class="svg-line-a" x1="570" y1="75" x2="620" y2="75" marker-end="url(#ara)"/>
+        <rect class="svg-box" x="624" y="44" width="150" height="62" rx="3"/>
+        <text class="svg-t" x="699" y="66" text-anchor="middle">LiteLLM</text>
+        <text class="svg-t-sm" x="699" y="82" text-anchor="middle">:4000 /v1</text>
+        <text class="svg-t-sm" x="699" y="96" text-anchor="middle">one front door</text>
+
+        <path class="svg-line-a" d="M699 108 L699 148 L640 148" marker-end="url(#ara)"/>
+        <rect class="svg-box" x="404" y="126" width="232" height="46" rx="3"/>
+        <text class="svg-t" x="520" y="146" text-anchor="middle">AMAZON BEDROCK</text>
+        <text class="svg-t-sm" x="520" y="162" text-anchor="middle">nova-pro · nova-lite · titan-embed</text>
+
+        <line class="svg-dash" x1="8" y1="216" x2="872" y2="216"/>
+        <text class="svg-t" x="8" y="240">TWO IDENTITIES</text>
+
+        <rect class="svg-box" x="8" y="254" width="270" height="66" rx="3"/>
+        <text class="svg-t" x="24" y="276">deployer IAM user</text>
+        <text class="svg-t-sm" x="24" y="292">long-lived keys, in .env, on YOUR laptop</text>
+        <text class="svg-t-sm" x="24" y="308">builds: ECR · IAM · ECS · S3 · logs</text>
+
+        <rect class="svg-box-a" x="300" y="254" width="270" height="66" rx="3"/>
+        <text class="svg-t-a" x="316" y="276">ecsTaskRole</text>
+        <text class="svg-t-sm" x="316" y="292">NO keys — assumed by the container</text>
+        <text class="svg-t-sm" x="316" y="308">grants: bedrock:InvokeModel only</text>
+
+        <rect class="svg-box" x="592" y="254" width="280" height="66" rx="3"/>
+        <text class="svg-t" x="608" y="276">ecsExecutionRole</text>
+        <text class="svg-t-sm" x="608" y="292">used by the ECS agent, not your code</text>
+        <text class="svg-t-sm" x="608" y="308">grants: pull from ECR · write logs</text>
+      </svg>
+      </div>
+      <figcaption>Fig. 1 — The container never holds an AWS key. That is the whole point of the task role.</figcaption>
+    </figure>
+
+    <h3>Why LiteLLM sits in the middle</h3>
+    <p>You could call Bedrock directly with <code>boto3</code> or <code>langchain-aws</code>. Putting LiteLLM in front buys you four things that are painful to retrofit: <strong>one OpenAI-shaped protocol</strong> for every model, so swapping Nova for Claude for Llama is a config line rather than a code change; <strong>a single credential boundary</strong>, so only the gateway needs AWS access; <strong>routing, fallback and retries</strong> for free; and <strong>one place</strong> to attach logging, spend caps and tracing.</p>
+
+    <p>The cost is one more process. For a single-model toy it's overhead; the moment you have two models or two apps, it pays for itself.</p>
+
+    <div class="note">
+      <span class="label">Directory layout this playbook assumes</span>
+      <p>Mirrors your <code>faraz_shayari</code> project — <code>app.py</code> (FastAPI shell) · <code>agent.py</code> (LangGraph) · <code>game.py</code> (pure logic) · <code>frontend.html</code> · <code>Dockerfile</code> · <code>.dockerignore</code> · <code>requirements.txt</code> · <code>docker-compose.yml</code> · <code>deploy.py</code> · <code>upload_html_to_s3.py</code>.</p>
+    </div>
+  </section>
+
+  <!-- ═══ 02 ═══════════════════════════════════════════════════════════ -->
+  <section class="sec" id="s02">
+    <div class="sec-head"><span class="n">02</span><h2>Local first: docker compose</h2></div>
+
+    <p>Never debug on Fargate what you can debug on your laptop. Compose gives you the exact topology you'll deploy — app container talking to gateway container over a private network — with a one-second edit loop.</p>
+
+    <figure class="code">
+      <figcaption><span>docker-compose.yml</span><span class="tag">two services, one network</span></figcaption>
+<pre><code><span class="c"># The app talks ONLY to the gateway. Only the GATEWAY holds AWS creds, so the</span>
+<span class="c"># app container has zero AWS keys — same boundary you get on Fargate.</span>
+
+services:
+  litellm:                                     <span class="c"># ① the AI gateway</span>
+    image: ghcr.io/berriai/litellm:main-latest
+    env_file: .env                             <span class="c"># AWS_ACCESS_KEY_ID / _SECRET / _DEFAULT_REGION</span>
+    environment:
+      - LITELLM_MASTER_KEY=sk-local-dev
+    volumes:
+      - ./litellm/config.bedrock.yaml:/app/config.yaml:ro
+    command: [<span class="s">"--config"</span>, <span class="s">"/app/config.yaml"</span>, <span class="s">"--host"</span>, <span class="s">"0.0.0.0"</span>, <span class="s">"--port"</span>, <span class="s">"4000"</span>]
+    <span class="c"># deliberately NOT published to the host — internal to the compose network</span>
+    healthcheck:
+      test: [<span class="s">"CMD-SHELL"</span>, <span class="s">"python -c \"import urllib.request; urllib.request.urlopen('http://localhost:4000/health/liveliness')\" || exit 1"</span>]
+      interval: 8s
+      timeout: 5s
+      retries: 15
+
+  app:                                         <span class="c"># ② your service (no AWS creds)</span>
+    build: .
+    depends_on:
+      litellm:
+        condition: service_healthy             <span class="c"># ← wait for READY, not just started</span>
+    environment:
+      - LITELLM_BASE_URL=http://litellm:4000/v1
+      - LITELLM_API_KEY=sk-local-dev
+      - GEN_MODEL=nova-pro
+      - HTML_URL=https://your-bucket.s3.eu-north-1.amazonaws.com/frontend.html
+    ports:
+      - <span class="s">"8000:8000"</span></code></pre>
+    </figure>
+
+    <figure class="code">
+      <figcaption><span>shell</span><span class="tag">the loop</span></figcaption>
+<pre><code><span class="p">$</span> docker compose up --build          <span class="c"># first run pulls the litellm image</span>
+<span class="p">$</span> curl localhost:8000/health
+<span class="p">$</span> docker compose logs -f app          <span class="c"># tail just your service</span>
+<span class="p">$</span> docker compose exec app sh          <span class="c"># poke around inside the container</span>
+<span class="p">$</span> docker compose down                 <span class="c"># -v also wipes volumes</span></code></pre>
+    </figure>
+
+    <div class="note warn">
+      <span class="label">depends_on without a condition is a lie</span>
+      <p>Plain <code>depends_on: [litellm]</code> waits for the container to <em>start</em>, not to be <em>ready</em>. LiteLLM takes several seconds to boot; your app will fire its first request into a refused connection and crash-loop. Always pair it with a <code>healthcheck</code> and <code>condition: service_healthy</code>.</p>
+    </div>
+  </section>
+
+  <!-- ═══ 03 ═══════════════════════════════════════════════════════════ -->
+  <section class="sec" id="s03">
+    <div class="sec-head"><span class="n">03</span><h2>LiteLLM → Bedrock: many models, one door</h2></div>
+
+    <p>The config maps <strong>friendly names your code asks for</strong> to <strong>real Bedrock model IDs</strong>. Your application only ever knows the friendly name.</p>
+
+    <figure class="code">
+      <figcaption><span>litellm/config.bedrock.yaml</span><span class="tag">the routing table</span></figcaption>
+<pre><code>model_list:
+  <span class="c"># ── reasoning / generation ────────────────────────────────────────</span>
+  - model_name: nova-pro                       <span class="c"># what the app asks for</span>
+    litellm_params:
+      model: bedrock/eu.amazon.nova-pro-v1:0   <span class="c"># note the eu.* profile prefix</span>
+      aws_region_name: eu-north-1
+  - model_name: nova-lite                      <span class="c"># cheap+fast: routing, extraction</span>
+    litellm_params:
+      model: bedrock/eu.amazon.nova-lite-v1:0
+      aws_region_name: eu-north-1
+  - model_name: nova-micro
+    litellm_params:
+      model: bedrock/eu.amazon.nova-micro-v1:0
+      aws_region_name: eu-north-1
+
+  <span class="c"># ── embeddings, through the same door ─────────────────────────────</span>
+  - model_name: titan-embed
+    litellm_params:
+      model: bedrock/amazon.titan-embed-text-v2:0
+      aws_region_name: eu-north-1
+
+  <span class="c"># ── a logical alias with automatic fallback ───────────────────────</span>
+  <span class="c"># two entries sharing one model_name = LiteLLM load-balances and</span>
+  <span class="c"># fails over between them. Great for quota exhaustion.</span>
+  - model_name: smart
+    litellm_params:
+      model: bedrock/eu.amazon.nova-pro-v1:0
+      aws_region_name: eu-north-1
+  - model_name: smart
+    litellm_params:
+      model: bedrock/eu.amazon.nova-lite-v1:0
+      aws_region_name: eu-north-1
+
+litellm_settings:
+  drop_params: true          <span class="c"># silently drop params a model doesn't support</span>
+  request_timeout: 120
+  num_retries: 2
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY    <span class="c"># clients send it as a Bearer token</span></code></pre>
+    </figure>
+
+    <h3>Calling it — it's just the OpenAI SDK</h3>
+
+    <figure class="code">
+      <figcaption><span>llm.py</span><span class="tag">one client, any model</span></figcaption>
+<pre><code><span class="k">import</span> os
+<span class="k">from</span> openai <span class="k">import</span> OpenAI
+
+GATEWAY = OpenAI(
+    base_url=os.getenv(<span class="s">"LITELLM_BASE_URL"</span>, <span class="s">"http://localhost:4000/v1"</span>),
+    api_key=os.getenv(<span class="s">"LITELLM_API_KEY"</span>, <span class="s">"sk-local-dev"</span>),
+)
+
+<span class="k">def</span> chat(prompt: str, model: str = <span class="s">"nova-lite"</span>, **kw) -> str:
+    r = GATEWAY.chat.completions.create(
+        model=model,                              <span class="c"># ← the friendly name</span>
+        messages=[{<span class="s">"role"</span>: <span class="s">"user"</span>, <span class="s">"content"</span>: prompt}],
+        **kw,
+    )
+    <span class="k">return</span> r.choices[<span class="s">0</span>].message.content
+
+<span class="c"># model tiering is now a one-word change</span>
+route   = chat(<span class="s">"Classify: billing / bug / other"</span>, model=<span class="s">"nova-micro"</span>)
+answer  = chat(<span class="s">"Explain the tradeoff in depth"</span>, model=<span class="s">"nova-pro"</span>)
+
+<span class="c"># embeddings go through the same client</span>
+vec = GATEWAY.embeddings.create(model=<span class="s">"titan-embed"</span>, input=<span class="s">"hello"</span>).data[<span class="s">0</span>].embedding</code></pre>
+    </figure>
+
+    <h3>Bedrock model IDs that trip people up</h3>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Family</th><th>ID pattern</th><th>Gotcha</th></tr></thead>
+        <tbody>
+          <tr><td>Amazon Nova</td><td><code>amazon.nova-{pro,lite,micro}-v1:0</code></td><td>Needs a regional <em>inference profile</em> prefix in most regions: <code>eu.</code> / <code>us.</code> / <code>apac.</code>. The bare ID throws <code>ValidationException</code>.</td></tr>
+          <tr><td>Titan Embeddings</td><td><code>amazon.titan-embed-text-v2:0</code></td><td>No profile prefix. Returns 1024-dim by default; you can request 512 or 256.</td></tr>
+          <tr><td>Anthropic Claude</td><td><code>anthropic.claude-*</code></td><td>Requires submitting the use-case details form in the Bedrock console before access is granted. Nova needs no form — that's why it's the default here.</td></tr>
+          <tr><td>Meta Llama / Mistral</td><td><code>meta.llama*</code> / <code>mistral.*</code></td><td>Availability varies sharply by region. Check before wiring up.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <figure class="code">
+      <figcaption><span>shell</span><span class="tag">never guess a model id</span></figcaption>
+<pre><code><span class="c"># what's actually available to you, in your region, right now</span>
+<span class="p">$</span> aws bedrock list-foundation-models --region eu-north-1 \
+    --query <span class="s">'modelSummaries[].modelId'</span> --output table
+
+<span class="c"># inference profiles (the eu.* / us.* ids you actually invoke)</span>
+<span class="p">$</span> aws bedrock list-inference-profiles --region eu-north-1 \
+    --query <span class="s">'inferenceProfileSummaries[].inferenceProfileId'</span> --output table</code></pre>
+    </figure>
+
+    <div class="note warn">
+      <span class="label">Inference profiles need permissions on both halves</span>
+      <p>A cross-region inference profile like <code>eu.amazon.nova-pro-v1:0</code> fans your request out to the underlying foundation model in several EU regions. Your IAM policy must therefore allow <strong>both</strong> the profile ARN <em>and</em> the <code>foundation-model/amazon.*</code> ARNs. Granting only the profile produces an <code>AccessDeniedException</code> that names a region you never configured — a genuinely confusing error. See §07.</p>
+    </div>
+  </section>
+
+  <!-- ═══ 04 ═══════════════════════════════════════════════════════════ -->
+  <section class="sec" id="s04">
+    <div class="sec-head"><span class="n">04</span><h2>The FastAPI service</h2></div>
+
+    <p>Keep <code>app.py</code> a thin HTTP shell. Business logic lives in modules you can import and test without spinning up a server.</p>
+
+    <figure class="code">
+      <figcaption><span>app.py</span><span class="tag">HTTP shell only</span></figcaption>
+<pre><code><span class="k">from</span> __future__ <span class="k">import</span> annotations
+<span class="k">import</span> os, urllib.request
+<span class="k">from</span> contextlib <span class="k">import</span> asynccontextmanager
+<span class="k">from</span> pathlib <span class="k">import</span> Path
+
+<span class="k">from</span> fastapi <span class="k">import</span> FastAPI, HTTPException
+<span class="k">from</span> fastapi.responses <span class="k">import</span> HTMLResponse
+<span class="k">from</span> pydantic <span class="k">import</span> BaseModel
+
+<span class="k">from</span> agent <span class="k">import</span> build_graph          <span class="c"># §05</span>
+
+STATE: dict = {}
+
+
+<span class="k">@asynccontextmanager</span>
+<span class="k">async def</span> lifespan(app: FastAPI):
+    <span class="s">"""Runs ONCE at startup. Compile the graph here, never per-request —</span>
+<span class="s">    graph construction is expensive and the result is reusable."""</span>
+    STATE[<span class="s">"graph"</span>] = build_graph()
+    print(<span class="s">"✓ graph compiled"</span>)
+    <span class="k">yield</span>
+    STATE.clear()
+
+
+app = FastAPI(title=<span class="s">"Tic-Tac-Toe Agent"</span>, lifespan=lifespan)
+
+
+<span class="k">class</span> MoveReq(BaseModel):
+    board: list[str]            <span class="c"># 9 cells: "X" | "O" | " "</span>
+    player: str = <span class="s">"O"</span>
+
+
+<span class="k">@app</span>.get(<span class="s">"/health"</span>)
+<span class="k">async def</span> health():
+    <span class="c"># ECS + the Docker HEALTHCHECK hit this. Keep it dependency-free:</span>
+    <span class="c"># if it calls Bedrock, a Bedrock blip kills your container.</span>
+    <span class="k">return</span> {<span class="s">"status"</span>: <span class="s">"ok"</span>, <span class="s">"graph"</span>: <span class="s">"graph"</span> <span class="k">in</span> STATE}
+
+
+<span class="k">@app</span>.post(<span class="s">"/move"</span>)
+<span class="k">async def</span> move(req: MoveReq):
+    graph = STATE.get(<span class="s">"graph"</span>)
+    <span class="k">if</span> graph <span class="k">is</span> None:
+        <span class="k">raise</span> HTTPException(<span class="s">503</span>, <span class="s">"graph not ready"</span>)
+    <span class="k">try</span>:
+        out = <span class="k">await</span> graph.ainvoke({<span class="s">"board"</span>: req.board, <span class="s">"player"</span>: req.player})
+    <span class="k">except</span> Exception <span class="k">as</span> e:
+        <span class="k">raise</span> HTTPException(<span class="s">500</span>, <span class="s">f"{type(e).__name__}: {e}"</span>)
+    <span class="k">return</span> {<span class="s">"move"</span>: out[<span class="s">"move"</span>], <span class="s">"rationale"</span>: out[<span class="s">"rationale"</span>],
+            <span class="s">"verdict"</span>: out[<span class="s">"verdict"</span>], <span class="s">"reports"</span>: out[<span class="s">"reports"</span>]}
+
+
+<span class="c"># ── serve the UI from S3, falling back to the bundled copy ────────────</span>
+_CACHE: dict[str, str] = {}
+
+<span class="k">@app</span>.get(<span class="s">"/"</span>, response_class=HTMLResponse)
+<span class="k">async def</span> home():
+    url = os.getenv(<span class="s">"HTML_URL"</span>)
+    <span class="k">if</span> url:
+        <span class="k">if</span> <span class="s">"html"</span> <span class="k">not</span> <span class="k">in</span> _CACHE:                <span class="c"># fetch once, cache in memory</span>
+            <span class="k">with</span> urllib.request.urlopen(url, timeout=<span class="s">10</span>) <span class="k">as</span> r:
+                _CACHE[<span class="s">"html"</span>] = r.read().decode()
+        <span class="k">return</span> _CACHE[<span class="s">"html"</span>]
+    <span class="k">return</span> (Path(__file__).parent / <span class="s">"frontend.html"</span>).read_text()</code></pre>
+    </figure>
+
+    <p>Three decisions in there are worth copying deliberately:</p>
+    <ul>
+      <li><strong><code>lifespan</code>, not module-level init.</strong> Building the graph at import time makes the module un-importable in tests and breaks reload. Compiling per-request is slow. The lifespan hook is the correct seam.</li>
+      <li><strong><code>/health</code> touches nothing external.</strong> ECS restarts the task when health fails. If health depends on Bedrock, a transient Bedrock error becomes a restart loop.</li>
+      <li><strong>Serve the UI same-origin.</strong> The browser fetches <code>/</code> and posts to <code>/move</code> on the same host — no CORS preflight, no mixed-content block over plain HTTP.</li>
+    </ul>
+  </section>
+
+  <!-- ═══ 05 ═══════════════════════════════════════════════════════════ -->
+  <section class="sec" id="s05">
+    <div class="sec-head"><span class="n">05</span><h2>LangGraph: a supervisor that spawns subagents</h2></div>
+
+    <p class="lede">Tic-tac-toe is a good teaching target precisely because it's solved. You have a perfect verifier — minimax — so you can <em>score</em> the agent instead of admiring it.</p>
+
+    <figure class="dia">
+      <div class="frame">
+      <svg viewBox="0 0 880 300" role="img" aria-label="Graph: scout computes legal moves deterministically, fans out one analyst subagent per candidate move, supervisor picks, referee scores with minimax and can loop back.">
+        <rect class="svg-box" x="8" y="110" width="132" height="56" rx="3"/>
+        <text class="svg-t" x="74" y="132" text-anchor="middle">scout</text>
+        <text class="svg-t-sm" x="74" y="148" text-anchor="middle">pure python</text>
+        <text class="svg-t-sm" x="74" y="160" text-anchor="middle">no LLM</text>
+
+        <line class="svg-line" x1="142" y1="138" x2="196" y2="138" marker-end="url(#ar)"/>
+        <text class="svg-t-sm" x="146" y="128">Send() × N</text>
+
+        <rect class="svg-box-a" x="200" y="34" width="164" height="46" rx="3"/>
+        <text class="svg-t-a" x="282" y="54" text-anchor="middle">analyst · move 4</text>
+        <text class="svg-t-sm" x="282" y="70" text-anchor="middle">own context window</text>
+        <rect class="svg-box-a" x="200" y="114" width="164" height="46" rx="3"/>
+        <text class="svg-t-a" x="282" y="134" text-anchor="middle">analyst · move 6</text>
+        <text class="svg-t-sm" x="282" y="150" text-anchor="middle">runs in parallel</text>
+        <rect class="svg-box-a" x="200" y="194" width="164" height="46" rx="3"/>
+        <text class="svg-t-a" x="282" y="214" text-anchor="middle">analyst · move 8</text>
+        <text class="svg-t-sm" x="282" y="230" text-anchor="middle">structured output</text>
+
+        <path class="svg-line" d="M366 57 L410 57 L410 138" marker-end="url(#ar)"/>
+        <line class="svg-line" x1="366" y1="137" x2="440" y2="137" marker-end="url(#ar)"/>
+        <path class="svg-line" d="M366 217 L410 217 L410 140" marker-end="url(#ar)"/>
+        <text class="svg-t-sm" x="378" y="176">reducer</text>
+        <text class="svg-t-sm" x="378" y="188">merges</text>
+
+        <rect class="svg-box" x="444" y="110" width="150" height="56" rx="3"/>
+        <text class="svg-t" x="519" y="132" text-anchor="middle">supervisor</text>
+        <text class="svg-t-sm" x="519" y="148" text-anchor="middle">reads all reports</text>
+        <text class="svg-t-sm" x="519" y="160" text-anchor="middle">picks one move</text>
+
+        <line class="svg-line" x1="596" y1="138" x2="650" y2="138" marker-end="url(#ar)"/>
+
+        <rect class="svg-box" x="654" y="110" width="146" height="56" rx="3"/>
+        <text class="svg-t" x="727" y="132" text-anchor="middle">referee</text>
+        <text class="svg-t-sm" x="727" y="148" text-anchor="middle">minimax</text>
+        <text class="svg-t-sm" x="727" y="160" text-anchor="middle">ground truth</text>
+
+        <line class="svg-line" x1="802" y1="138" x2="856" y2="138" marker-end="url(#ar)"/>
+        <text class="svg-t-a" x="812" y="128">END</text>
+
+        <path class="svg-line-a" d="M727 108 L727 84 L519 84 L519 108" marker-end="url(#ara)"/>
+        <text class="svg-t-a" x="558" y="78">blunder → retry once with the referee's feedback</text>
+
+        <line class="svg-dash" x1="8" y1="268" x2="872" y2="268"/>
+        <text class="svg-t-sm" x="8" y="286">the only LLM calls are the analysts and the supervisor — legality, win detection and scoring are code, because code is exact</text>
+      </svg>
+      </div>
+      <figcaption>Fig. 2 — Evaluator–optimiser with a programmatic evaluator. The referee cannot be argued with.</figcaption>
+    </figure>
+
+    <h3>The game, in pure Python</h3>
+    <p>Write this first, and give the LLM none of it to guess at. Every line here is a thing a language model does <em>worse</em> than a for-loop.</p>
+
+    <figure class="code">
+      <figcaption><span>game.py</span><span class="tag">deterministic core + the verifier</span></figcaption>
+<pre><code><span class="k">from</span> __future__ <span class="k">import</span> annotations
+<span class="k">from</span> functools <span class="k">import</span> lru_cache
+
+WINS = [(<span class="s">0</span>,<span class="s">1</span>,<span class="s">2</span>),(<span class="s">3</span>,<span class="s">4</span>,<span class="s">5</span>),(<span class="s">6</span>,<span class="s">7</span>,<span class="s">8</span>),(<span class="s">0</span>,<span class="s">3</span>,<span class="s">6</span>),(<span class="s">1</span>,<span class="s">4</span>,<span class="s">7</span>),(<span class="s">2</span>,<span class="s">5</span>,<span class="s">8</span>),(<span class="s">0</span>,<span class="s">4</span>,<span class="s">8</span>),(<span class="s">2</span>,<span class="s">4</span>,<span class="s">6</span>)]
+OTHER = {<span class="s">"X"</span>: <span class="s">"O"</span>, <span class="s">"O"</span>: <span class="s">"X"</span>}
+
+
+<span class="k">def</span> winner(b: tuple[str, ...]) -> str | None:
+    <span class="k">for</span> a, c, d <span class="k">in</span> WINS:
+        <span class="k">if</span> b[a] != <span class="s">" "</span> <span class="k">and</span> b[a] == b[c] == b[d]:
+            <span class="k">return</span> b[a]
+    <span class="k">return</span> None
+
+
+<span class="k">def</span> legal(b: tuple[str, ...]) -> list[int]:
+    <span class="k">return</span> [i <span class="k">for</span> i, v <span class="k">in</span> enumerate(b) <span class="k">if</span> v == <span class="s">" "</span>]
+
+
+<span class="k">def</span> render(b: tuple[str, ...]) -> str:
+    <span class="s">"""ASCII board WITH cell indices — models reason far better about</span>
+<span class="s">    'index 4' than about a picture they have to count squares in."""</span>
+    cells = [v <span class="k">if</span> v != <span class="s">" "</span> <span class="k">else</span> str(i) <span class="k">for</span> i, v <span class="k">in</span> enumerate(b)]
+    <span class="k">return</span> <span class="s">"\n---------\n"</span>.join(
+        <span class="s">" "</span> + <span class="s">" | "</span>.join(cells[r*<span class="s">3</span>:r*<span class="s">3</span>+<span class="s">3</span>]) <span class="k">for</span> r <span class="k">in</span> range(<span class="s">3</span>))
+
+
+<span class="k">def</span> tactics(b: tuple[str, ...], me: str) -> dict:
+    <span class="s">"""Immediate wins and forced blocks. Cheap, exact, and it stops the</span>
+<span class="s">    supervisor from ever needing an LLM to notice a two-in-a-row."""</span>
+    you = OTHER[me]
+    win  = [m <span class="k">for</span> m <span class="k">in</span> legal(b) <span class="k">if</span> winner(b[:m] + (me,)  + b[m+<span class="s">1</span>:]) == me]
+    block= [m <span class="k">for</span> m <span class="k">in</span> legal(b) <span class="k">if</span> winner(b[:m] + (you,) + b[m+<span class="s">1</span>:]) == you]
+    <span class="k">return</span> {<span class="s">"winning_moves"</span>: win, <span class="s">"must_block"</span>: block}
+
+
+<span class="c"># ── THE VERIFIER ──────────────────────────────────────────────────────</span>
+<span class="c"># Perfect play, memoised. 9! states — this is instant. Because it exists,</span>
+<span class="c"># every agent decision is objectively gradeable. That is the whole point.</span>
+<span class="k">@lru_cache</span>(maxsize=None)
+<span class="k">def</span> minimax(b: tuple[str, ...], me: str, turn: str) -> int:
+    <span class="s">"""+1 = 'me' wins with perfect play, 0 = draw, -1 = 'me' loses."""</span>
+    w = winner(b)
+    <span class="k">if</span> w:                  <span class="k">return</span> <span class="s">1</span> <span class="k">if</span> w == me <span class="k">else</span> -<span class="s">1</span>
+    <span class="k">if</span> <span class="k">not</span> legal(b):     <span class="k">return</span> <span class="s">0</span>
+    scores = [minimax(b[:m] + (turn,) + b[m+<span class="s">1</span>:], me, OTHER[turn]) <span class="k">for</span> m <span class="k">in</span> legal(b)]
+    <span class="k">return</span> max(scores) <span class="k">if</span> turn == me <span class="k">else</span> min(scores)
+
+
+<span class="k">def</span> grade(b: tuple[str, ...], me: str, move: int) -> dict:
+    <span class="s">"""Score the agent's chosen move against perfect play."""</span>
+    <span class="k">if</span> move <span class="k">not</span> <span class="k">in</span> legal(b):
+        <span class="k">return</span> {<span class="s">"verdict"</span>: <span class="s">"illegal"</span>, <span class="s">"best"</span>: legal(b)}
+    got  = minimax(b[:move] + (me,) + b[move+<span class="s">1</span>:], me, OTHER[me])
+    outs = {m: minimax(b[:m] + (me,) + b[m+<span class="s">1</span>:], me, OTHER[me]) <span class="k">for</span> m <span class="k">in</span> legal(b)}
+    best = max(outs.values())
+    <span class="k">return</span> {
+        <span class="s">"verdict"</span>: <span class="s">"optimal"</span> <span class="k">if</span> got == best <span class="k">else</span> (<span class="s">"blunder"</span> <span class="k">if</span> got &lt; <span class="s">0</span> &lt;= best <span class="k">else</span> <span class="s">"suboptimal"</span>),
+        <span class="s">"got"</span>: got, <span class="s">"best"</span>: best,
+        <span class="s">"best_moves"</span>: [m <span class="k">for</span> m, v <span class="k">in</span> outs.items() <span class="k">if</span> v == best],
+    }</code></pre>
+    </figure>
+
+    <h3>The graph</h3>
+    <p>Now the agentic part. Note where the LLM is and — more importantly — where it isn't.</p>
+
+    <figure class="code">
+      <figcaption><span>agent.py</span><span class="tag">supervisor + dynamic subagent fan-out</span></figcaption>
+<pre><code><span class="k">from</span> __future__ <span class="k">import</span> annotations
+<span class="k">import</span> operator, os
+<span class="k">from</span> typing <span class="k">import</span> Annotated, TypedDict, Literal
+
+<span class="k">from</span> langgraph.graph <span class="k">import</span> StateGraph, START, END
+<span class="k">from</span> langgraph.types <span class="k">import</span> Send      <span class="c"># older versions: langgraph.constants</span>
+<span class="k">from</span> langchain_openai <span class="k">import</span> ChatOpenAI
+<span class="k">from</span> pydantic <span class="k">import</span> BaseModel, Field
+
+<span class="k">from</span> game <span class="k">import</span> legal, render, tactics, grade
+
+<span class="c"># Point LangChain's OpenAI client at the LiteLLM gateway. One line, and every</span>
+<span class="c"># Bedrock model becomes available under its friendly name.</span>
+<span class="k">def</span> llm(model: str, temperature: float = <span class="s">0.2</span>):
+    <span class="k">return</span> ChatOpenAI(
+        model=model, temperature=temperature,
+        base_url=os.getenv(<span class="s">"LITELLM_BASE_URL"</span>, <span class="s">"http://localhost:4000/v1"</span>),
+        api_key=os.getenv(<span class="s">"LITELLM_API_KEY"</span>, <span class="s">"sk-local-dev"</span>),
+    )
+
+
+<span class="c"># ── contracts ─────────────────────────────────────────────────────────</span>
+<span class="k">class</span> Report(BaseModel):
+    <span class="c"># reasoning FIRST: generation is left-to-right, so a rationale placed</span>
+    <span class="c"># after the score is a post-hoc justification of a number already picked.</span>
+    reasoning: str = Field(description=<span class="s">"2 sentences max, concrete."</span>)
+    score: int = Field(description=<span class="s">"-10 (losing) to 10 (winning)"</span>, ge=-<span class="s">10</span>, le=<span class="s">10</span>)
+    threat_created: bool
+    opponent_best_reply: int
+
+
+<span class="k">class</span> Decision(BaseModel):
+    reasoning: str
+    move: int
+
+
+<span class="c"># ── state ─────────────────────────────────────────────────────────────</span>
+<span class="k">class</span> S(TypedDict):
+    board: list[str]
+    player: str
+    candidates: list[int]
+    hints: dict
+    <span class="c"># the reducer: parallel branches each RETURN a one-item list, and</span>
+    <span class="c"># operator.add concatenates them. Without this, branches overwrite</span>
+    <span class="c"># each other and you keep exactly one report.</span>
+    reports: Annotated[list[dict], operator.add]
+    move: int
+    rationale: str
+    verdict: dict
+    attempts: int
+
+
+<span class="c"># ── 1. scout: deterministic. no tokens spent on arithmetic. ───────────</span>
+<span class="k">def</span> scout(s: S) -> dict:
+    b = tuple(s[<span class="s">"board"</span>])
+    <span class="k">return</span> {<span class="s">"candidates"</span>: legal(b), <span class="s">"hints"</span>: tactics(b, s[<span class="s">"player"</span>]),
+            <span class="s">"attempts"</span>: s.get(<span class="s">"attempts"</span>, <span class="s">0</span>)}
+
+
+<span class="c"># ── 2. fan out: ONE subagent per candidate move ───────────────────────</span>
+<span class="c"># Send() is dynamic map-reduce — N is decided at runtime from the state.</span>
+<span class="c"># Each analyst gets its own context: it sees one move, not nine.</span>
+<span class="k">def</span> fan_out(s: S) -> list[Send]:
+    <span class="k">return</span> [Send(<span class="s">"analyst"</span>, {<span class="s">"board"</span>: s[<span class="s">"board"</span>], <span class="s">"player"</span>: s[<span class="s">"player"</span>], <span class="s">"cell"</span>: c})
+            <span class="k">for</span> c <span class="k">in</span> s[<span class="s">"candidates"</span>]]
+
+
+<span class="k">def</span> analyst(payload: dict) -> dict:
+    b, me, cell = tuple(payload[<span class="s">"board"</span>]), payload[<span class="s">"player"</span>], payload[<span class="s">"cell"</span>]
+    after = b[:cell] + (me,) + b[cell+<span class="s">1</span>:]
+    model = llm(<span class="s">"nova-lite"</span>)                       <span class="c"># cheap model, narrow job</span>
+    r: Report = model.with_structured_output(Report).invoke(
+        <span class="s">f"You are '{me}' in tic-tac-toe. Evaluate ONLY the move to cell {cell}.\n\n"</span>
+        <span class="s">f"Before:\n{render(b)}\n\nAfter:\n{render(after)}\n\n"</span>
+        <span class="s">f"Judge: does it win, block, fork, or hand the opponent a win?"</span>)
+    <span class="c"># return a ONE-ITEM LIST — the reducer concatenates across branches</span>
+    <span class="k">return</span> {<span class="s">"reports"</span>: [{<span class="s">"cell"</span>: cell, **r.model_dump()}]}
+
+
+<span class="c"># ── 3. supervisor: sees every report, makes the call ──────────────────</span>
+<span class="k">def</span> supervisor(s: S) -> dict:
+    h = s[<span class="s">"hints"</span>]
+    <span class="c"># Short-circuit the forced moves. Never pay an LLM to find a win it</span>
+    <span class="c"># might miss when three lines of Python find it every time.</span>
+    <span class="k">if</span> h[<span class="s">"winning_moves"</span>]:
+        <span class="k">return</span> {<span class="s">"move"</span>: h[<span class="s">"winning_moves"</span>][<span class="s">0</span>], <span class="s">"rationale"</span>: <span class="s">"immediate win"</span>}
+    <span class="k">if</span> h[<span class="s">"must_block"</span>]:
+        <span class="k">return</span> {<span class="s">"move"</span>: h[<span class="s">"must_block"</span>][<span class="s">0</span>], <span class="s">"rationale"</span>: <span class="s">"forced block"</span>}
+
+    table = <span class="s">"\n"</span>.join(
+        <span class="s">f"  cell {r['cell']}: score={r['score']:+d} fork={r['threat_created']} "</span>
+        <span class="s">f"reply={r['opponent_best_reply']} — {r['reasoning']}"</span>
+        <span class="k">for</span> r <span class="k">in</span> sorted(s[<span class="s">"reports"</span>], key=<span class="k">lambda</span> r: -r[<span class="s">"score"</span>]))
+
+    prior = s.get(<span class="s">"verdict"</span>) <span class="k">or</span> {}
+    correction = (<span class="s">f"\n\nYour previous pick was a {prior['verdict']}. "</span>
+                  <span class="s">f"Perfect play prefers {prior['best_moves']}. Reconsider."</span>
+                  <span class="k">if</span> prior.get(<span class="s">"verdict"</span>) <span class="k">in</span> (<span class="s">"blunder"</span>, <span class="s">"suboptimal"</span>) <span class="k">else</span> <span class="s">""</span>)
+
+    d: Decision = llm(<span class="s">"nova-pro"</span>).with_structured_output(Decision).invoke(
+        <span class="s">f"Board (numbers = empty cells):\n{render(tuple(s['board']))}\n\n"</span>
+        <span class="s">f"You are '{s['player']}'. Independent analyst reports:\n{table}\n\n"</span>
+        <span class="s">f"Pick the single best cell. Legal: {s['candidates']}.{correction}"</span>)
+
+    <span class="c"># Never trust a model's integer. Clamp to the legal set.</span>
+    mv = d.move <span class="k">if</span> d.move <span class="k">in</span> s[<span class="s">"candidates"</span>] <span class="k">else</span> s[<span class="s">"candidates"</span>][<span class="s">0</span>]
+    <span class="k">return</span> {<span class="s">"move"</span>: mv, <span class="s">"rationale"</span>: d.reasoning, <span class="s">"attempts"</span>: s[<span class="s">"attempts"</span>] + <span class="s">1</span>}
+
+
+<span class="c"># ── 4. referee: the programmatic evaluator ────────────────────────────</span>
+<span class="k">def</span> referee(s: S) -> dict:
+    <span class="k">return</span> {<span class="s">"verdict"</span>: grade(tuple(s[<span class="s">"board"</span>]), s[<span class="s">"player"</span>], s[<span class="s">"move"</span>])}
+
+
+<span class="k">def</span> retry_or_end(s: S) -> Literal[<span class="s">"supervisor"</span>, <span class="s">"__end__"</span>]:
+    <span class="c"># one retry only. an evaluator-optimiser loop without a cap is a bill.</span>
+    <span class="k">if</span> s[<span class="s">"verdict"</span>][<span class="s">"verdict"</span>] == <span class="s">"blunder"</span> <span class="k">and</span> s[<span class="s">"attempts"</span>] &lt; <span class="s">2</span>:
+        <span class="k">return</span> <span class="s">"supervisor"</span>
+    <span class="k">return</span> END
+
+
+<span class="k">def</span> build_graph():
+    g = StateGraph(S)
+    g.add_node(<span class="s">"scout"</span>, scout)
+    g.add_node(<span class="s">"analyst"</span>, analyst)
+    g.add_node(<span class="s">"supervisor"</span>, supervisor)
+    g.add_node(<span class="s">"referee"</span>, referee)
+
+    g.add_edge(START, <span class="s">"scout"</span>)
+    g.add_conditional_edges(<span class="s">"scout"</span>, fan_out, [<span class="s">"analyst"</span>])   <span class="c"># dynamic N</span>
+    g.add_edge(<span class="s">"analyst"</span>, <span class="s">"supervisor"</span>)      <span class="c"># implicit barrier: waits for ALL</span>
+    g.add_edge(<span class="s">"supervisor"</span>, <span class="s">"referee"</span>)
+    g.add_conditional_edges(<span class="s">"referee"</span>, retry_or_end)
+    <span class="k">return</span> g.compile()</code></pre>
+    </figure>
+
+    <h3>What this demonstrates</h3>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Pattern</th><th>Where</th><th>Why it's the right call here</th></tr></thead>
+        <tbody>
+          <tr><td>Deterministic floor</td><td><code>scout</code>, <code>tactics</code></td><td>Legality and two-in-a-row detection are exact in code and probabilistic in a model. Never spend a token on either.</td></tr>
+          <tr><td>Dynamic fan-out</td><td><code>Send()</code></td><td>N subagents where N is only known at runtime. Static parallel edges can't express that.</td></tr>
+          <tr><td>Context isolation</td><td><code>analyst</code></td><td>Each subagent evaluates one move with one board. It cannot be distracted by eight alternatives.</td></tr>
+          <tr><td>Reducer</td><td><code>Annotated[list, operator.add]</code></td><td>The single most common LangGraph bug is parallel branches silently overwriting shared state. The reducer is what makes fan-in work.</td></tr>
+          <tr><td>Model tiering</td><td>nova-lite / nova-pro</td><td>Nine cheap narrow calls, one expensive synthesis call. Roughly the cost profile you want everywhere.</td></tr>
+          <tr><td>Evaluator–optimiser</td><td><code>referee</code> → <code>supervisor</code></td><td>A verifier that cannot be argued with, feeding a bounded retry.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note">
+      <span class="label">Now you can actually measure it</span>
+      <p>Because <code>grade()</code> exists, run 200 random reachable positions through the graph and report: % optimal, % suboptimal, % blunder, mean tokens, p95 latency. That's a real eval suite, in about thirty lines. Then change one thing — drop the analysts, or swap nova-pro for nova-lite in the supervisor — and see the number move. Most agent projects never get this, because most domains have no oracle. This one does, so use it.</p>
+      <p><strong>Sample from mid-game positions, not from the empty board.</strong> Tic-tac-toe is a draw under perfect play from <em>any</em> opening, so <code>grade()</code> scores all nine first moves as optimal — correct, and completely uninformative. The signal lives at 3–6 pieces on the board, where blunders become possible. An eval suite drawn uniformly from all reachable states will look flatteringly good for exactly this reason.</p>
+    </div>
+
+    <div class="note warn">
+      <span class="label">Fan-out is a cost multiplier</span>
+      <p>Nine candidate moves means nine LLM calls per turn, per game. Fine for tic-tac-toe; a disaster if you naively port the pattern to a domain with hundreds of candidates. Prune with the deterministic layer first — pass only the top-k candidates to <code>Send</code>.</p>
+    </div>
+  </section>
+
+  <!-- ═══ PART II ══════════════════════════════════════════════════════ -->
+  <div class="part">
+    <span class="pn">Part II</span>
+    <h2>Ship</h2>
+    <p>Everything above runs on your laptop. The rest is getting it onto the internet with no credentials in the image and no clicking in the console.</p>
+  </div>
+
+  <!-- ═══ 06 ═══════════════════════════════════════════════════════════ -->
+  <section class="sec" id="s06">
+    <div class="sec-head"><span class="n">06</span><h2>Containerising</h2></div>
+
+    <figure class="code">
+      <figcaption><span>Dockerfile</span><span class="tag">layer order is the whole optimisation</span></figcaption>
+<pre><code>FROM python:3.11-slim
+WORKDIR /app
+
+<span class="c"># ① deps FIRST, in their own layer. This layer is cached and reused on</span>
+<span class="c">#    every rebuild where requirements.txt hasn't changed — turning a</span>
+<span class="c">#    90-second rebuild into 3 seconds. Copying code first destroys this.</span>
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+<span class="c"># ② code second, one COPY per concern (changes bust only later layers)</span>
+COPY game.py agent.py app.py ./
+COPY frontend.html ./
+
+<span class="c"># ③ non-root. ECS doesn't force it; security scanners and sane people do.</span>
+RUN useradd -m appuser
+USER appuser
+
+EXPOSE 8000
+
+<span class="c"># ④ container-level liveness. Hits our own /health — no external deps,</span>
+<span class="c">#    so a Bedrock outage can't cause a restart loop.</span>
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD python -c <span class="s">"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health').status==200 else 1)"</span>
+
+<span class="c"># ⑤ NO credentials in the image, ever. Locally: --env-file .env</span>
+<span class="c">#    On ECS: the task role supplies them automatically.</span>
+CMD [<span class="s">"uvicorn"</span>, <span class="s">"app:app"</span>, <span class="s">"--host"</span>, <span class="s">"0.0.0.0"</span>, <span class="s">"--port"</span>, <span class="s">"8000"</span>]</code></pre>
+    </figure>
+
+    <figure class="code">
+      <figcaption><span>.dockerignore</span><span class="tag">not optional</span></figcaption>
+<pre><code>.venv/
+__pycache__/
+*.pyc
+.env                 <span class="c"># ← the one that matters. never bake secrets in.</span>
+*.csv                <span class="c"># access-key exports</span>
+.git/
+data/raw/            <span class="c"># big source files; ship only built artefacts</span>
+*.md
+deploy.py            <span class="c"># deploy tooling doesn't belong in the runtime image</span></code></pre>
+    </figure>
+
+    <div class="note warn">
+      <span class="label">Build for the platform Fargate runs</span>
+      <p>Fargate x86 tasks need <code>linux/amd64</code>. Building on Apple Silicon without <code>--platform linux/amd64</code> produces an arm64 image that pulls fine and then dies with <code>exec format error</code> — a failure that gives you no useful clue. Always be explicit:</p>
+      <p><code>docker build --platform linux/amd64 -t myapp:latest .</code></p>
+      <p>(You're on x86 Linux, so this is a no-op for you today — but it costs nothing and saves an hour the first time you build from a Mac.)</p>
+    </div>
+
+    <p>Two sizing notes. Bake <em>built artefacts</em>, not build inputs — your <code>faraz</code> image ships <code>embeddings.npy</code> and skips the scraper and the raw corpus, which is exactly right. And if the image gets large, switch to a multi-stage build: compile wheels in a <code>builder</code> stage, then <code>COPY --from=builder</code> only the installed packages into a fresh slim base.</p>
+  </section>
+
+  <!-- ═══ 07 ═══════════════════════════════════════════════════════════ -->
+  <section class="sec" id="s07">
+    <div class="sec-head"><span class="n">07</span><h2>IAM: the two-identity model</h2></div>
+
+    <p class="lede">This is where most people get stuck, and it's entirely because three different identities are involved and AWS names two of them almost identically.</p>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Identity</th><th>Who uses it</th><th>When</th><th>Needs</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Deployer IAM user</strong></td><td>You, from your laptop</td><td>Build time</td><td>ECR, IAM, ECS, EC2 (VPC/SG), CloudWatch Logs, S3, STS</td></tr>
+          <tr><td><strong>Execution role</strong><br><code>ecsTaskExecutionRole</code></td><td>The ECS agent — <em>not</em> your code</td><td>Before your container starts</td><td>Pull the image from ECR, create log streams</td></tr>
+          <tr><td><strong>Task role</strong><br><code>ecsTaskRole</code></td><td>Your application code</td><td>While running</td><td>Whatever your app calls — here, <code>bedrock:InvokeModel</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p><strong>Execution vs task is the distinction that matters.</strong> If the image won't pull or logs never appear, it's the <em>execution</em> role. If your code gets <code>AccessDeniedException</code> from Bedrock at runtime, it's the <em>task</em> role. Both are assumed by the same principal — <code>ecs-tasks.amazonaws.com</code> — which is why the trust policy looks identical and people wire them backwards.</p>
+
+    <figure class="code">
+      <figcaption><span>deploy.py · stage_roles</span><span class="tag">idempotent, boto3-only</span></figcaption>
+<pre><code>TRUST = json.dumps({<span class="s">"Version"</span>: <span class="s">"2012-10-17"</span>, <span class="s">"Statement"</span>: [{
+    <span class="s">"Effect"</span>: <span class="s">"Allow"</span>,
+    <span class="s">"Principal"</span>: {<span class="s">"Service"</span>: <span class="s">"ecs-tasks.amazonaws.com"</span>},   <span class="c"># ← BOTH roles</span>
+    <span class="s">"Action"</span>: <span class="s">"sts:AssumeRole"</span>}]})
+
+
+<span class="k">def</span> _make_role(iam, name):
+    <span class="s">"""Create, or update the trust policy if it already exists.</span>
+<span class="s">    Idempotency is what lets you re-run deploy.py without fear."""</span>
+    <span class="k">try</span>:
+        iam.create_role(RoleName=name, AssumeRolePolicyDocument=TRUST)
+    <span class="k">except</span> iam.exceptions.EntityAlreadyExistsException:
+        iam.update_assume_role_policy(RoleName=name, PolicyDocument=TRUST)
+
+
+<span class="k">def</span> stage_roles():
+    iam = boto3.client(<span class="s">"iam"</span>, **KW)
+
+    <span class="c"># ── ① EXECUTION role: AWS's managed policy is exactly right here.</span>
+    <span class="c">#     It grants ecr:GetAuthorizationToken, ecr:BatchGetImage and</span>
+    <span class="c">#     logs:CreateLogStream/PutLogEvents. Don't hand-roll it.</span>
+    _make_role(iam, EXEC_ROLE)
+    iam.attach_role_policy(RoleName=EXEC_ROLE,
+        PolicyArn=<span class="s">"arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"</span>)
+
+    <span class="c"># ── ② TASK role: least privilege, hand-written, inline.</span>
+    _make_role(iam, TASK_ROLE)
+    iam.put_role_policy(RoleName=TASK_ROLE, PolicyName=<span class="s">"BedrockInvoke"</span>,
+        PolicyDocument=json.dumps({<span class="s">"Version"</span>: <span class="s">"2012-10-17"</span>, <span class="s">"Statement"</span>: [{
+            <span class="s">"Effect"</span>: <span class="s">"Allow"</span>,
+            <span class="s">"Action"</span>: [<span class="s">"bedrock:InvokeModel"</span>,
+                       <span class="s">"bedrock:InvokeModelWithResponseStream"</span>],
+            <span class="s">"Resource"</span>: [
+                <span class="c"># the underlying foundation models, in ANY region — a</span>
+                <span class="c"># cross-region inference profile routes across several</span>
+                <span class="s">"arn:aws:bedrock:*::foundation-model/amazon.*"</span>,
+                <span class="c"># and the profile itself, which IS account-scoped</span>
+                <span class="s">f"arn:aws:bedrock:*:{ACCOUNT}:inference-profile/eu.amazon.*"</span>,
+            ]}]}))</code></pre>
+    </figure>
+
+    <div class="note warn">
+      <span class="label">Two ARN shapes, and one of them has no account</span>
+      <p>Foundation-model ARNs carry an <strong>empty account field</strong> — <code>arn:aws:bedrock:*::foundation-model/...</code>, note the double colon — because the models are AWS-owned, not yours. Inference profiles <em>are</em> account-scoped and take your account id. Getting this wrong is the single most common cause of "I granted Bedrock and it still says AccessDenied".</p>
+    </div>
+
+    <h3>The deployer user</h3>
+    <p>For a lab account, attach the managed policies and move on: <code>AmazonEC2ContainerRegistryFullAccess</code>, <code>AmazonECS_FullAccess</code>, <code>IAMFullAccess</code>, <code>CloudWatchLogsFullAccess</code>, <code>AmazonS3FullAccess</code>, plus <code>AmazonEC2FullAccess</code> for VPC and security-group reads.</p>
+
+    <p><code>IAMFullAccess</code> is the one to be deliberate about — it lets that key create any role. Keep the credentials out of git (they're in your <code>.dockerignore</code> already), rotate them periodically, and if this ever becomes shared infrastructure, replace the user with a role you assume via SSO.</p>
+
+    <div class="note">
+      <span class="label">Where credentials come from, in order</span>
+      <p>boto3 resolves: explicit kwargs → environment variables → <code>~/.aws/credentials</code> → <strong>container credential endpoint</strong> → EC2 instance metadata. That fourth one is the magic: on Fargate the ECS agent injects <code>AWS_CONTAINER_CREDENTIALS_RELATIVE_URI</code>, boto3 finds it automatically, and the task role's temporary credentials appear with no code change. This is why the identical image runs locally with <code>--env-file .env</code> and on Fargate with no keys at all.</p>
+    </div>
+  </section>
+
+  <!-- ═══ 08 ═══════════════════════════════════════════════════════════ -->
+  <section class="sec" id="s08">
+    <div class="sec-head"><span class="n">08</span><h2>ECR: build, tag, push</h2></div>
+
+    <figure class="code">
+      <figcaption><span>shell</span><span class="tag">the four commands</span></figcaption>
+<pre><code><span class="p">$</span> ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
+<span class="p">$</span> REGION=eu-north-1
+<span class="p">$</span> REPO=tictactoe-agent
+<span class="p">$</span> URI=$ACCOUNT.dkr.ecr.$REGION.amazonaws.com/$REPO
+
+<span class="c"># ① repo (idempotent — ignore the AlreadyExists error)</span>
+<span class="p">$</span> aws ecr create-repository --repository-name $REPO --region $REGION
+
+<span class="c"># ② auth: a 12-hour token piped straight into docker login</span>
+<span class="p">$</span> aws ecr get-login-password --region $REGION \
+    | docker login --username AWS --password-stdin $ACCOUNT.dkr.ecr.$REGION.amazonaws.com
+
+<span class="c"># ③ build for the right arch and tag with BOTH a sha and latest</span>
+<span class="p">$</span> SHA=$(git rev-parse --short HEAD)
+<span class="p">$</span> docker build --platform linux/amd64 -t $REPO:$SHA .
+<span class="p">$</span> docker tag $REPO:$SHA $URI:$SHA
+<span class="p">$</span> docker tag $REPO:$SHA $URI:latest
+
+<span class="c"># ④ push both tags</span>
+<span class="p">$</span> docker push $URI:$SHA
+<span class="p">$</span> docker push $URI:latest</code></pre>
+    </figure>
+
+    <p>Tag with the git sha as well as <code>latest</code>. <code>latest</code> is what the task definition points at for convenience; the sha is what lets you roll back to a specific build when <code>latest</code> turns out to be broken. Without it, "roll back" means "rebuild from an older commit and hope".</p>
+
+    <figure class="code">
+      <figcaption><span>shell</span><span class="tag">housekeeping</span></figcaption>
+<pre><code><span class="c"># ECR bills for storage. Untagged layers accumulate silently.</span>
+<span class="p">$</span> aws ecr put-lifecycle-policy --repository-name $REPO --region $REGION \
+    --lifecycle-policy-text <span class="s">'{"rules":[{"rulePriority":1,
+        "selection":{"tagStatus":"untagged","countType":"sinceImagePushed",
+                     "countUnit":"days","countNumber":7},
+        "action":{"type":"expire"}}]}'</span>
+
+<span class="c"># scan a pushed image for CVEs</span>
+<span class="p">$</span> aws ecr describe-image-scan-findings --repository-name $REPO \
+    --image-id imageTag=latest --region $REGION</code></pre>
+    </figure>
+  </section>
+
+  <!-- ═══ 09 ═══════════════════════════════════════════════════════════ -->
+  <section class="sec" id="s09">
+    <div class="sec-head"><span class="n">09</span><h2>Fargate: cluster, task, service</h2></div>
+
+    <p>Four objects, in this order. Each depends on the one before it — which is exactly why the deploy script is staged.</p>
+
+    <ul class="stages">
+      <li><span class="sn">01</span><span class="snm">log group</span><span class="sd">Create <code>/ecs/&lt;app&gt;</code> <em>before</em> the first task runs. The <code>awslogs</code> driver does not create it for you by default, and a task whose log driver fails to initialise dies instantly with nothing written anywhere.</span></li>
+      <li><span class="sn">02</span><span class="snm">cluster</span><span class="sd">A namespace, essentially. Free. <code>capacityProviders=["FARGATE"]</code>.</span></li>
+      <li><span class="sn">03</span><span class="snm">task definition</span><span class="sd">The immutable blueprint: image, cpu/memory, ports, env, log config, and <em>both</em> role ARNs. Every register creates a new numbered revision.</span></li>
+      <li><span class="sn">04</span><span class="snm">service</span><span class="sd">Keeps N tasks alive, replaces unhealthy ones, and handles rolling deploys.</span></li>
+    </ul>
+
+    <figure class="code">
+      <figcaption><span>deploy.py · stage_taskdef</span><span class="tag">the blueprint</span></figcaption>
+<pre><code><span class="k">def</span> stage_taskdef():
+    ecs = boto3.client(<span class="s">"ecs"</span>, **KW)
+    ecs.register_task_definition(
+        family=TASK_FAMILY,
+        requiresCompatibilities=[<span class="s">"FARGATE"</span>],
+        networkMode=<span class="s">"awsvpc"</span>,              <span class="c"># the only option on Fargate</span>
+        cpu=<span class="s">"512"</span>, memory=<span class="s">"1024"</span>,           <span class="c"># must be a VALID PAIR — see below</span>
+
+        <span class="c"># ── the two roles. mixing these up is the classic mistake ──</span>
+        executionRoleArn=<span class="s">f"arn:aws:iam::{ACCOUNT}:role/{EXEC_ROLE}"</span>,  <span class="c"># ECS agent</span>
+        taskRoleArn=<span class="s">f"arn:aws:iam::{ACCOUNT}:role/{TASK_ROLE}"</span>,       <span class="c"># your code</span>
+
+        containerDefinitions=[{
+            <span class="s">"name"</span>: APP,
+            <span class="s">"image"</span>: <span class="s">f"{ECR_URI}:latest"</span>,
+            <span class="s">"essential"</span>: True,          <span class="c"># if it exits, the whole task stops</span>
+            <span class="s">"portMappings"</span>: [{<span class="s">"containerPort"</span>: <span class="s">8000</span>, <span class="s">"protocol"</span>: <span class="s">"tcp"</span>}],
+            <span class="s">"environment"</span>: [
+                {<span class="s">"name"</span>: <span class="s">"AWS_DEFAULT_REGION"</span>, <span class="s">"value"</span>: REGION},
+                {<span class="s">"name"</span>: <span class="s">"GEN_MODEL"</span>, <span class="s">"value"</span>: <span class="s">"nova-pro"</span>},
+                {<span class="s">"name"</span>: <span class="s">"HTML_URL"</span>, <span class="s">"value"</span>: HTML_URL},
+            ],
+            <span class="c"># For real secrets use "secrets" (not "environment") pointing at</span>
+            <span class="c"># Secrets Manager / SSM — values then never appear in the task def.</span>
+            <span class="s">"logConfiguration"</span>: {<span class="s">"logDriver"</span>: <span class="s">"awslogs"</span>, <span class="s">"options"</span>: {
+                <span class="s">"awslogs-group"</span>: LOG_GROUP,
+                <span class="s">"awslogs-region"</span>: REGION,
+                <span class="s">"awslogs-stream-prefix"</span>: <span class="s">"ecs"</span>}},
+        }])</code></pre>
+    </figure>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>CPU</th><th>Valid memory</th><th>Fits</th></tr></thead>
+        <tbody>
+          <tr><td><code>256</code> (.25 vCPU)</td><td>512 / 1024 / 2048</td><td>Tiny API. Too small for LiteLLM + app together.</td></tr>
+          <tr><td><code>512</code> (.5 vCPU)</td><td>1024 – 4096 (1 GB steps)</td><td>Sensible default for one FastAPI service.</td></tr>
+          <tr><td><code>1024</code> (1 vCPU)</td><td>2048 – 8192</td><td>App + sidecar gateway, or heavier numpy work.</td></tr>
+          <tr><td><code>2048</code> (2 vCPU)</td><td>4096 – 16384</td><td>Rarely needed if the model runs in Bedrock, not in your container.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>Invalid pairs are rejected at registration — that's the good case. The bad case is under-provisioning memory: the container gets OOM-killed mid-request and the service quietly restarts it, which reads as random 502s.</p>
+
+    <h3>Networking</h3>
+
+    <figure class="code">
+      <figcaption><span>deploy.py · _network + stage_run</span><span class="tag">default VPC, public IP</span></figcaption>
+<pre><code><span class="k">def</span> _network():
+    <span class="s">"""Find the default VPC, its subnets, and a security group opening 8000."""</span>
+    ec2 = boto3.client(<span class="s">"ec2"</span>, **KW)
+    vpc = ec2.describe_vpcs(Filters=[{<span class="s">"Name"</span>: <span class="s">"isDefault"</span>, <span class="s">"Values"</span>: [<span class="s">"true"</span>]}])[<span class="s">"Vpcs"</span>][<span class="s">0</span>][<span class="s">"VpcId"</span>]
+    subnets = [s[<span class="s">"SubnetId"</span>] <span class="k">for</span> s <span class="k">in</span> ec2.describe_subnets(
+        Filters=[{<span class="s">"Name"</span>: <span class="s">"vpc-id"</span>, <span class="s">"Values"</span>: [vpc]}])[<span class="s">"Subnets"</span>]]
+
+    sgs = ec2.describe_security_groups(Filters=[
+        {<span class="s">"Name"</span>: <span class="s">"group-name"</span>, <span class="s">"Values"</span>: [SG_NAME]},
+        {<span class="s">"Name"</span>: <span class="s">"vpc-id"</span>, <span class="s">"Values"</span>: [vpc]}])[<span class="s">"SecurityGroups"</span>]
+    <span class="k">if</span> sgs:
+        <span class="k">return</span> subnets, sgs[<span class="s">0</span>][<span class="s">"GroupId"</span>]
+
+    sg = ec2.create_security_group(GroupName=SG_NAME, VpcId=vpc,
+                                   Description=<span class="s">"public 8000"</span>)[<span class="s">"GroupId"</span>]
+    ec2.authorize_security_group_ingress(GroupId=sg, IpPermissions=[{
+        <span class="s">"IpProtocol"</span>: <span class="s">"tcp"</span>, <span class="s">"FromPort"</span>: <span class="s">8000</span>, <span class="s">"ToPort"</span>: <span class="s">8000</span>,
+        <span class="s">"IpRanges"</span>: [{<span class="s">"CidrIp"</span>: <span class="s">"0.0.0.0/0"</span>}]}])       <span class="c"># demo-grade. lock down for real use.</span>
+    <span class="k">return</span> subnets, sg
+
+
+<span class="k">def</span> stage_run():
+    ecs = boto3.client(<span class="s">"ecs"</span>, **KW)
+    subnets, sg = _network()
+    net = {<span class="s">"awsvpcConfiguration"</span>: {
+        <span class="s">"subnets"</span>: subnets, <span class="s">"securityGroups"</span>: [sg],
+        <span class="c"># REQUIRED in a public subnet with no NAT gateway: without a public</span>
+        <span class="c"># IP the task cannot reach ECR to pull its own image and hangs in</span>
+        <span class="c"># PENDING before dying with CannotPullContainerError.</span>
+        <span class="s">"assignPublicIp"</span>: <span class="s">"ENABLED"</span>}}
+
+    active = [s <span class="k">for</span> s <span class="k">in</span> ecs.describe_services(cluster=CLUSTER, services=[SERVICE])[<span class="s">"services"</span>]
+              <span class="k">if</span> s[<span class="s">"status"</span>] == <span class="s">"ACTIVE"</span>]
+    <span class="k">if</span> active:
+        <span class="c"># same :latest tag → ECS won't notice. forceNewDeployment makes it re-pull.</span>
+        ecs.update_service(cluster=CLUSTER, service=SERVICE,
+                           taskDefinition=TASK_FAMILY, desiredCount=<span class="s">1</span>,
+                           forceNewDeployment=True)
+    <span class="k">else</span>:
+        ecs.create_service(cluster=CLUSTER, serviceName=SERVICE,
+                           taskDefinition=TASK_FAMILY, desiredCount=<span class="s">1</span>,
+                           launchType=<span class="s">"FARGATE"</span>, networkConfiguration=net)</code></pre>
+    </figure>
+
+    <div class="note warn">
+      <span class="label">The public IP changes on every deploy</span>
+      <p>Fargate assigns a fresh ENI, and therefore a fresh public IP, each time a task is replaced. Fine for a demo you're sharing today; useless for anything anyone bookmarks. When you need stability, put an <strong>Application Load Balancer</strong> in front — you get a stable DNS name, health-check-driven rolling deploys with no downtime, and HTTPS via ACM. The task then moves to a private subnet with the security group locked to the ALB. Budget roughly $16–20/month for the ALB itself.</p>
+    </div>
+  </section>
+
+  <!-- ═══ 10 ═══════════════════════════════════════════════════════════ -->
+  <section class="sec" id="s10">
+    <div class="sec-head"><span class="n">10</span><h2>Frontend on S3</h2></div>
+
+    <p>Two genuinely different approaches, and it's worth being deliberate about which you're using.</p>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th></th><th>A · App fetches from S3</th><th>B · Browser loads from S3</th></tr></thead>
+        <tbody>
+          <tr><td>Browser hits</td><td>Your Fargate URL</td><td>The S3 URL directly</td></tr>
+          <tr><td>API calls are</td><td>Same-origin</td><td>Cross-origin</td></tr>
+          <tr><td>CORS needed</td><td>No</td><td><strong>Yes</strong> — and HTTPS→HTTP is blocked as mixed content</td></tr>
+          <tr><td>Update UI by</td><td>Re-uploading to S3, restarting the task</td><td>Re-uploading to S3</td></tr>
+          <tr><td>Good for</td><td>One app, one URL — <em>your current setup</em></td><td>A real SPA, fronted by CloudFront</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>Option A is what <code>faraz_shayari</code> does and it's the right call for a single service: the app fetches the HTML from S3 once at first request, caches it in memory, and serves it from <code>/</code>. You update the UI by replacing the object in the bucket — no image rebuild, no ECR push. Just restart the task to clear the cache.</p>
+
+    <figure class="code">
+      <figcaption><span>upload_html_to_s3.py</span><span class="tag">bucket · policy · object</span></figcaption>
+<pre><code><span class="k">import</span> json
+<span class="k">from</span> pathlib <span class="k">import</span> Path
+<span class="k">import</span> boto3
+
+HERE   = Path(__file__).parent
+ACCOUNT= boto3.client(<span class="s">"sts"</span>, **KW).get_caller_identity()[<span class="s">"Account"</span>]
+BUCKET = <span class="s">f"tictactoe-web-{ACCOUNT}"</span>      <span class="c"># bucket names are GLOBALLY unique —</span>
+KEY    = <span class="s">"frontend.html"</span>                <span class="c"># suffixing the account id avoids collisions</span>
+
+s3 = boto3.client(<span class="s">"s3"</span>, **KW)
+
+<span class="c"># ① create. every region EXCEPT us-east-1 requires LocationConstraint;</span>
+<span class="c">#    passing it FOR us-east-1 is an error. Yes, really.</span>
+<span class="k">try</span>:
+    s3.create_bucket(Bucket=BUCKET,
+                     CreateBucketConfiguration={<span class="s">"LocationConstraint"</span>: REGION})
+<span class="k">except</span> s3.exceptions.BucketAlreadyOwnedByYou:
+    <span class="k">pass</span>
+
+<span class="c"># ② public read. Since 2023 new buckets block public access by default,</span>
+<span class="c">#    and the block WINS over any bucket policy — so it must go first.</span>
+s3.delete_public_access_block(Bucket=BUCKET)
+s3.put_bucket_policy(Bucket=BUCKET, Policy=json.dumps({
+    <span class="s">"Version"</span>: <span class="s">"2012-10-17"</span>,
+    <span class="s">"Statement"</span>: [{
+        <span class="s">"Sid"</span>: <span class="s">"PublicReadHTML"</span>, <span class="s">"Effect"</span>: <span class="s">"Allow"</span>, <span class="s">"Principal"</span>: <span class="s">"*"</span>,
+        <span class="s">"Action"</span>: <span class="s">"s3:GetObject"</span>,
+        <span class="s">"Resource"</span>: <span class="s">f"arn:aws:s3:::{BUCKET}/*"</span>,   <span class="c"># /* — objects, not the bucket</span>
+    }]}))
+
+<span class="c"># ③ upload. ContentType is NOT inferred — omit it and S3 serves</span>
+<span class="c">#    binary/octet-stream and the browser downloads your page.</span>
+s3.put_object(Bucket=BUCKET, Key=KEY,
+              Body=(HERE / <span class="s">"frontend.html"</span>).read_bytes(),
+              ContentType=<span class="s">"text/html; charset=utf-8"</span>,
+              CacheControl=<span class="s">"public, max-age=60"</span>)
+
+print(<span class="s">f"HTML_URL=https://{BUCKET}.s3.{REGION}.amazonaws.com/{KEY}"</span>)</code></pre>
+    </figure>
+
+    <h3>If you go with option B — static website hosting</h3>
+
+    <figure class="code">
+      <figcaption><span>shell</span><span class="tag">real SPA hosting</span></figcaption>
+<pre><code><span class="c"># website endpoint: supports index/error documents and directory redirects</span>
+<span class="p">$</span> aws s3 website s3://$BUCKET/ --index-document index.html --error-document index.html
+
+<span class="c"># sync a build directory, long-caching the fingerprinted assets and</span>
+<span class="c"># never caching index.html (or users get a stale shell forever)</span>
+<span class="p">$</span> aws s3 sync ./dist s3://$BUCKET/ --delete \
+    --cache-control <span class="s">"public,max-age=31536000,immutable"</span> --exclude index.html
+<span class="p">$</span> aws s3 cp ./dist/index.html s3://$BUCKET/index.html \
+    --cache-control <span class="s">"no-cache"</span> --content-type <span class="s">"text/html; charset=utf-8"</span>
+
+<span class="c"># after any CloudFront-fronted deploy, invalidate</span>
+<span class="p">$</span> aws cloudfront create-invalidation --distribution-id $DIST --paths <span class="s">"/*"</span></code></pre>
+    </figure>
+
+    <div class="note warn">
+      <span class="label">Then you must handle CORS and mixed content</span>
+      <p>A page served from HTTPS (S3 or CloudFront) <strong>cannot</strong> call <code>http://&lt;fargate-ip&gt;:8000</code> — browsers block mixed content outright, and no CORS header fixes it. Option B therefore forces you to put HTTPS in front of the API too: an ALB with an ACM certificate, or CloudFront with the API as a second origin. This is precisely why option A is the right default until you actually need a separate frontend.</p>
+    </div>
+  </section>
+
+  <!-- ═══ 11 ═══════════════════════════════════════════════════════════ -->
+  <section class="sec" id="s11">
+    <div class="sec-head"><span class="n">11</span><h2>deploy.py: the staged driver</h2></div>
+
+    <p>Everything above, in one re-runnable script. Two properties make it worth the effort: <strong>idempotent</strong>, so re-running is always safe, and <strong>staged</strong>, so you can re-run just the part that broke.</p>
+
+    <figure class="code">
+      <figcaption><span>deploy.py</span><span class="tag">header + driver</span></figcaption>
+<pre><code><span class="s">"""</span>
+<span class="s">Deploy to ECS Fargate — idempotent, boto3-only, no CloudFormation.</span>
+
+<span class="s">    python deploy.py all        # everything, in order</span>
+<span class="s">    python deploy.py roles      # just re-do IAM</span>
+<span class="s">    python deploy.py url        # just print the public IP</span>
+<span class="s">"""</span>
+<span class="k">from</span> __future__ <span class="k">import</span> annotations
+<span class="k">import</span> json, sys, time
+<span class="k">import</span> boto3
+<span class="k">from</span> dotenv <span class="k">import</span> dotenv_values
+
+CFG    = dotenv_values(<span class="s">".env"</span>)              <span class="c"># DEPLOYER creds — laptop only</span>
+REGION = CFG[<span class="s">"AWS_DEFAULT_REGION"</span>]
+KW     = dict(aws_access_key_id=CFG[<span class="s">"AWS_ACCESS_KEY_ID"</span>],
+              aws_secret_access_key=CFG[<span class="s">"AWS_SECRET_ACCESS_KEY"</span>],
+              region_name=REGION)
+
+APP        = <span class="s">"tictactoe-agent"</span>
+ECR_REPO   = APP
+CLUSTER    = <span class="s">"agents-cluster"</span>
+TASK_FAMILY= <span class="s">f"{APP}-task"</span>
+SERVICE    = <span class="s">f"{APP}-svc"</span>
+EXEC_ROLE  = <span class="s">"agentsExecutionRole"</span>
+TASK_ROLE  = <span class="s">"agentsTaskRole"</span>
+LOG_GROUP  = <span class="s">f"/ecs/{APP}"</span>
+SG_NAME    = <span class="s">f"{APP}-sg"</span>
+PORT       = <span class="s">8000</span>
+
+<span class="c"># derive, never hardcode — the script stays portable across accounts</span>
+ACCOUNT = boto3.client(<span class="s">"sts"</span>, **KW).get_caller_identity()[<span class="s">"Account"</span>]
+ECR_URI = <span class="s">f"{ACCOUNT}.dkr.ecr.{REGION}.amazonaws.com/{ECR_REPO}"</span>
+
+<span class="c"># ... stage_ecr / stage_roles / stage_logs / stage_cluster /</span>
+<span class="c">#     stage_taskdef / stage_run / stage_url  as shown above ...</span>
+
+
+<span class="k">def</span> stage_url():
+    <span class="s">"""Poll until a task is RUNNING, then resolve its ENI to a public IP."""</span>
+    ecs, ec2 = boto3.client(<span class="s">"ecs"</span>, **KW), boto3.client(<span class="s">"ec2"</span>, **KW)
+    <span class="k">for</span> _ <span class="k">in</span> range(<span class="s">40</span>):
+        tasks = ecs.list_tasks(cluster=CLUSTER, serviceName=SERVICE,
+                               desiredStatus=<span class="s">"RUNNING"</span>)[<span class="s">"taskArns"</span>]
+        <span class="k">if</span> tasks:
+            d = ecs.describe_tasks(cluster=CLUSTER, tasks=tasks)[<span class="s">"tasks"</span>][<span class="s">0</span>]
+            eni = next((kv[<span class="s">"value"</span>] <span class="k">for</span> a <span class="k">in</span> d.get(<span class="s">"attachments"</span>, [])
+                        <span class="k">for</span> kv <span class="k">in</span> a[<span class="s">"details"</span>] <span class="k">if</span> kv[<span class="s">"name"</span>] == <span class="s">"networkInterfaceId"</span>), None)
+            <span class="k">if</span> eni:
+                ni = ec2.describe_network_interfaces(NetworkInterfaceIds=[eni])[<span class="s">"NetworkInterfaces"</span>][<span class="s">0</span>]
+                <span class="k">if</span> ip := ni.get(<span class="s">"Association"</span>, {}).get(<span class="s">"PublicIp"</span>):
+                    print(<span class="s">f"  open  http://{ip}:{PORT}/"</span>)
+                    <span class="k">return</span> ip
+        print(<span class="s">"  waiting for RUNNING task..."</span>); time.sleep(<span class="s">15</span>)
+
+
+STAGES = {<span class="s">"ecr"</span>: stage_ecr, <span class="s">"roles"</span>: stage_roles, <span class="s">"logs"</span>: stage_logs,
+          <span class="s">"cluster"</span>: stage_cluster, <span class="s">"taskdef"</span>: stage_taskdef,
+          <span class="s">"run"</span>: stage_run, <span class="s">"url"</span>: stage_url}
+ORDER  = [<span class="s">"ecr"</span>, <span class="s">"roles"</span>, <span class="s">"logs"</span>, <span class="s">"cluster"</span>, <span class="s">"taskdef"</span>, <span class="s">"run"</span>, <span class="s">"url"</span>]
+
+<span class="k">if</span> __name__ == <span class="s">"__main__"</span>:
+    which = sys.argv[<span class="s">1</span>] <span class="k">if</span> len(sys.argv) > <span class="s">1</span> <span class="k">else</span> <span class="s">"all"</span>
+    print(<span class="s">f"account={ACCOUNT} region={REGION}"</span>)
+    <span class="k">for</span> name <span class="k">in</span> (ORDER <span class="k">if</span> which == <span class="s">"all"</span> <span class="k">else</span> [which]):
+        print(<span class="s">f"\n== {name} =="</span>); STAGES[name]()</code></pre>
+    </figure>
+
+    <figure class="code">
+      <figcaption><span>shell</span><span class="tag">first deploy, start to finish</span></figcaption>
+<pre><code><span class="p">$</span> python deploy.py ecr                          <span class="c"># prints ECR_URI</span>
+<span class="p">$</span> aws ecr get-login-password --region eu-north-1 \
+    | docker login --username AWS --password-stdin $ACCOUNT.dkr.ecr.eu-north-1.amazonaws.com
+<span class="p">$</span> docker build --platform linux/amd64 -t tictactoe-agent .
+<span class="p">$</span> docker tag tictactoe-agent:latest $ECR_URI:latest
+<span class="p">$</span> docker push $ECR_URI:latest
+
+<span class="p">$</span> python upload_html_to_s3.py                   <span class="c"># prints HTML_URL → put it in the task def</span>
+<span class="p">$</span> python deploy.py all                          <span class="c"># roles → logs → cluster → taskdef → run → url</span>
+
+<span class="g">  open  http://13.62.x.x:8000/</span></code></pre>
+    </figure>
+
+    <div class="note">
+      <span class="label">Why boto3 and not CloudFormation / CDK / Terraform</span>
+      <p>For a lab you own end to end, a 200-line boto3 script is faster to write, trivially debuggable, and teaches you what the API actually does. The trade you're making is real: no drift detection, no dependency graph, no <code>destroy</code>. Once this becomes shared infrastructure with more than one person deploying it, move to Terraform or CDK — the script's job is to make you fluent enough to know what those tools are generating.</p>
+    </div>
+  </section>
+
+  <!-- ═══ 12 ═══════════════════════════════════════════════════════════ -->
+  <section class="sec" id="s12">
+    <div class="sec-head"><span class="n">12</span><h2>Operating it</h2></div>
+
+    <figure class="code">
+      <figcaption><span>shell</span><span class="tag">the commands you'll actually use</span></figcaption>
+<pre><code><span class="c"># ── logs ─────────────────────────────────────────────────────────────</span>
+<span class="p">$</span> aws logs tail /ecs/tictactoe-agent --follow --region eu-north-1
+<span class="p">$</span> aws logs tail /ecs/tictactoe-agent --since 1h --filter-pattern <span class="s">"ERROR"</span>
+
+<span class="c"># ── why did the task die? stoppedReason is the answer 90% of the time ─</span>
+<span class="p">$</span> aws ecs list-tasks --cluster agents-cluster --desired-status STOPPED
+<span class="p">$</span> aws ecs describe-tasks --cluster agents-cluster --tasks &lt;arn&gt; \
+    --query <span class="s">'tasks[0].{reason:stoppedReason,containers:containers[].reason}'</span>
+
+<span class="c"># ── shell INTO a running Fargate task (needs enableExecuteCommand) ────</span>
+<span class="p">$</span> aws ecs update-service --cluster agents-cluster --service tictactoe-agent-svc \
+    --enable-execute-command --force-new-deployment
+<span class="p">$</span> aws ecs execute-command --cluster agents-cluster --task &lt;arn&gt; \
+    --container tictactoe-agent --interactive --command <span class="s">"/bin/sh"</span>
+
+<span class="c"># ── redeploy after a push (same :latest tag) ──────────────────────────</span>
+<span class="p">$</span> aws ecs update-service --cluster agents-cluster --service tictactoe-agent-svc \
+    --force-new-deployment
+
+<span class="c"># ── roll back to a previous task-definition revision ──────────────────</span>
+<span class="p">$</span> aws ecs update-service --cluster agents-cluster --service tictactoe-agent-svc \
+    --task-definition tictactoe-agent-task:7
+
+<span class="c"># ── scale ─────────────────────────────────────────────────────────────</span>
+<span class="p">$</span> aws ecs update-service --cluster agents-cluster --service tictactoe-agent-svc \
+    --desired-count 0        <span class="c"># 0 = stop paying, keep everything defined</span></code></pre>
+    </figure>
+
+    <p><code>--desired-count 0</code> is the most useful line in that block. It stops all compute charges while leaving your cluster, task definition, roles and image exactly as they are. Set it back to 1 and you're live again in about a minute. Use it every time you stop working for the day.</p>
+  </section>
+
+  <!-- ═══ 13 ═══════════════════════════════════════════════════════════ -->
+  <section class="sec" id="s13">
+    <div class="sec-head"><span class="n">13</span><h2>Cost and teardown</h2></div>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Resource</th><th>Charged for</th><th>Order of magnitude</th></tr></thead>
+        <tbody>
+          <tr><td>Fargate task</td><td>vCPU-seconds + GB-seconds, while running</td><td>0.5 vCPU / 1 GB left up 24×7 ≈ <strong>$15–20/mo</strong>. This dominates.</td></tr>
+          <tr><td>ECR storage</td><td>Per GB-month</td><td>Cents, unless untagged layers pile up</td></tr>
+          <tr><td>CloudWatch Logs</td><td>Ingestion + retention</td><td>Cents — but set retention or it grows forever</td></tr>
+          <tr><td>S3</td><td>Storage + requests</td><td>Effectively free for one HTML file</td></tr>
+          <tr><td>Data transfer out</td><td>Per GB egress</td><td>Small for JSON APIs</td></tr>
+          <tr><td>Bedrock</td><td>Per input/output token</td><td>Whatever your agent spends — <em>fan-out multiplies this</em></td></tr>
+          <tr><td>ALB (if added)</td><td>Hourly + LCU</td><td>≈ <strong>$16–20/mo</strong> even at zero traffic</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <figure class="code">
+      <figcaption><span>shell</span><span class="tag">hygiene + full teardown</span></figcaption>
+<pre><code><span class="c"># stop logs growing forever</span>
+<span class="p">$</span> aws logs put-retention-policy --log-group-name /ecs/tictactoe-agent --retention-in-days 7
+
+<span class="c"># ── teardown, in dependency order ─────────────────────────────────────</span>
+<span class="p">$</span> aws ecs update-service --cluster agents-cluster --service tictactoe-agent-svc --desired-count 0
+<span class="p">$</span> aws ecs delete-service  --cluster agents-cluster --service tictactoe-agent-svc --force
+<span class="p">$</span> aws ecs delete-cluster  --cluster agents-cluster
+<span class="p">$</span> aws ecr delete-repository --repository-name tictactoe-agent --force
+<span class="p">$</span> aws logs delete-log-group --log-group-name /ecs/tictactoe-agent
+<span class="p">$</span> aws s3 rb s3://tictactoe-web-$ACCOUNT --force
+<span class="c"># roles last — detach managed policies and delete inline ones first</span>
+<span class="p">$</span> aws iam detach-role-policy --role-name agentsExecutionRole \
+    --policy-arn arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+<span class="p">$</span> aws iam delete-role-policy --role-name agentsTaskRole --policy-name BedrockInvoke
+<span class="p">$</span> aws iam delete-role --role-name agentsExecutionRole
+<span class="p">$</span> aws iam delete-role --role-name agentsTaskRole</code></pre>
+    </figure>
+
+    <div class="note warn">
+      <span class="label">The thing that actually bills you</span>
+      <p>Not the deploy — the task you left running. A forgotten Fargate service is a quiet ~$18/month. Set a <strong>Budget alert at $10</strong> in Billing, and get in the habit of <code>--desired-count 0</code> when you walk away.</p>
+    </div>
+  </section>
+
+  <!-- ═══ 14 ═══════════════════════════════════════════════════════════ -->
+  <section class="sec" id="s14">
+    <div class="sec-head"><span class="n">14</span><h2>Troubleshooting</h2></div>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr></thead>
+        <tbody>
+          <tr><td><code>CannotPullContainerError</code></td><td>Task can't reach ECR</td><td><code>assignPublicIp: ENABLED</code> in a public subnet, or add a NAT gateway / VPC endpoints for a private one</td></tr>
+          <tr><td><code>exec format error</code></td><td>arm64 image on an x86 task</td><td><code>docker build --platform linux/amd64</code></td></tr>
+          <tr><td>Task cycles PENDING → STOPPED, no logs</td><td>Log group doesn't exist</td><td>Create <code>/ecs/&lt;app&gt;</code> first, or set <code>awslogs-create-group: "true"</code></td></tr>
+          <tr><td><code>AccessDeniedException</code> from Bedrock</td><td>Task role policy</td><td>Grant <em>both</em> <code>foundation-model/amazon.*</code> (empty account field) and <code>inference-profile/eu.amazon.*</code></td></tr>
+          <tr><td><code>ValidationException</code> on model id</td><td>Missing inference-profile prefix</td><td>Use <code>eu.amazon.nova-pro-v1:0</code>, not the bare id. Confirm with <code>list-inference-profiles</code>.</td></tr>
+          <tr><td>Bedrock says "not authorized" for Claude</td><td>Model access not requested</td><td>Submit the Anthropic use-case form in the Bedrock console. Nova needs no form.</td></tr>
+          <tr><td>Pushed a new image, nothing changed</td><td>Same <code>:latest</code> tag — ECS sees no diff</td><td><code>--force-new-deployment</code>, or tag with the git sha and register a new revision</td></tr>
+          <tr><td>Container is healthy but connection refused</td><td>Bound to <code>127.0.0.1</code></td><td><code>--host 0.0.0.0</code>. Localhost inside a container is unreachable from outside it.</td></tr>
+          <tr><td>App can't reach LiteLLM in compose</td><td>Used <code>localhost:4000</code></td><td>Use the service name: <code>http://litellm:4000/v1</code></td></tr>
+          <tr><td>Crash-loop on startup, compose</td><td><code>depends_on</code> without a condition</td><td>Add a healthcheck + <code>condition: service_healthy</code></td></tr>
+          <tr><td>Browser downloads the page instead of rendering</td><td>Missing <code>ContentType</code> on the S3 object</td><td><code>ContentType="text/html; charset=utf-8"</code></td></tr>
+          <tr><td>S3 403 despite a public bucket policy</td><td>Public access block wins</td><td><code>delete_public_access_block</code> <em>before</em> <code>put_bucket_policy</code></td></tr>
+          <tr><td>Fetch from an HTTPS page is blocked</td><td>Mixed content — HTTPS page → HTTP API</td><td>Serve the UI from the app (option A), or put an ALB + ACM cert in front</td></tr>
+          <tr><td>Parallel LangGraph nodes lose results</td><td>No reducer on the shared key</td><td><code>Annotated[list[dict], operator.add]</code>, and return a one-item list from each branch</td></tr>
+          <tr><td>Graph hangs after fan-out</td><td>A <code>Send</code> target isn't registered as a node</td><td>Every <code>Send("name", …)</code> needs a matching <code>add_node("name", …)</code></td></tr>
+          <tr><td>Agent picks an illegal cell</td><td>Trusted the model's integer</td><td>Clamp against the legal set — never let a model's number reach your state unvalidated</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Deploy-day checklist</h3>
+    <ul class="check">
+      <li><b>.env</b> in <code>.dockerignore</code> and <code>.gitignore</code></li>
+      <li><b>platform</b> built for <code>linux/amd64</code></li>
+      <li><b>bind</b> uvicorn on <code>0.0.0.0</code>, not localhost</li>
+      <li><b>health</b> <code>/health</code> calls nothing external</li>
+      <li><b>logs</b> log group created before first run</li>
+      <li><b>roles</b> exec = pull+logs, task = bedrock</li>
+      <li><b>arns</b> foundation-model has an empty account field</li>
+      <li><b>publicip</b> ENABLED, or ECR is unreachable</li>
+      <li><b>tags</b> pushed the git sha as well as latest</li>
+      <li><b>retention</b> set on the log group</li>
+      <li><b>budget</b> alert configured at $10</li>
+      <li><b>scaledown</b> <code>--desired-count 0</code> when done</li>
+    </ul>
+
+    <div class="endnote">
+      <span>Playbook · FastAPI · LiteLLM · Bedrock · LangGraph · Fargate</span>
+      <span>Companion volume to the agentic AI &amp; MCP field guide</span>
+    </div>
+  </section>
+
+  </main>
+  </div>
+</div>
+</div>
+
+<script>
+(function () {
+  var btn = document.getElementById('themeToggle');
+  var root = document.documentElement;
+  btn.addEventListener('click', function () {
+    var systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    var current = root.getAttribute('data-theme') || (systemDark ? 'dark' : 'light');
+    root.setAttribute('data-theme', current === 'dark' ? 'light' : 'dark');
+  });
+
+  var links = Array.prototype.slice.call(document.querySelectorAll('.rail-list a'));
+  var map = {};
+  links.forEach(function (a) { map[a.getAttribute('href').slice(1)] = a; });
+  var sections = Array.prototype.slice.call(document.querySelectorAll('.sec'));
+  if (!('IntersectionObserver' in window)) return;
+
+  var visible = new Set();
+  var obs = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (e.isIntersecting) visible.add(e.target.id); else visible.delete(e.target.id);
+    });
+    var order = sections.map(function (s) { return s.id; }).filter(function (id) { return visible.has(id); });
+    links.forEach(function (a) { a.removeAttribute('aria-current'); });
+    if (order.length && map[order[0]]) map[order[0]].setAttribute('aria-current', 'true');
+  }, { rootMargin: '-10% 0px -70% 0px', threshold: 0 });
+
+  sections.forEach(function (s) { obs.observe(s); });
+})();
+</script>
+</body>
+</html>

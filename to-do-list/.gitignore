@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# local secrets and local data
+backend/.env
+backend/tasks.json
+backend/tests/.tasks-test.json

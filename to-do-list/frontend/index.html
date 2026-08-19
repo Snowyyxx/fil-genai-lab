@@ -1,0 +1,596 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Meowstermind — your zen cat task master</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐈</text></svg>" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          cream:    { 50:'#FCFAF5', 100:'#F8F3E9', 200:'#F1E8D8', 300:'#E6D9C3' },
+          sage:     { 100:'#E4EDE1', 200:'#C7DBC2', 300:'#A8BFA3', 400:'#89A583', 500:'#6E8A69', 600:'#556F51' },
+          lavender: { 100:'#EFEAF7', 200:'#DCD2EE', 300:'#C3B4E0', 400:'#A794CD' },
+          blush:    { 100:'#FBEAE3', 200:'#F4CFC1', 300:'#E9AE99' },
+          ink:      { 400:'#8C8378', 500:'#6B6359', 600:'#4E4840', 700:'#3A352F' },
+        },
+        fontFamily: {
+          sans: ['Quicksand', 'ui-rounded', 'system-ui', 'sans-serif'],
+          display: ['Fraunces', 'Georgia', 'serif'],
+        },
+      },
+    },
+  };
+</script>
+<style>
+  body {
+    background:
+      radial-gradient(1100px 600px at 12% -10%, #EFEAF7 0%, transparent 55%),
+      radial-gradient(900px 520px at 92% 0%, #E4EDE1 0%, transparent 50%),
+      #FCFAF5;
+  }
+  .card { box-shadow: 0 1px 2px rgba(78,72,64,.04), 0 12px 32px -18px rgba(78,72,64,.28); }
+  .bubble::after {
+    content:''; position:absolute; left:-9px; top:34px; width:18px; height:18px;
+    background:inherit; border-left:2px solid #E6D9C3; border-bottom:2px solid #E6D9C3;
+    transform:rotate(45deg); border-bottom-left-radius:4px;
+  }
+  @media (max-width: 767px) { .bubble::after { left:34px; top:-9px; transform:rotate(135deg); } }
+
+  @keyframes float   { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+  @keyframes breathe { 0%,100%{transform:scale(1)} 50%{transform:scale(1.035)} }
+  @keyframes drift   { 0%{opacity:0;transform:translate(0,0) scale(.7)} 25%{opacity:.9}
+                       100%{opacity:0;transform:translate(16px,-34px) scale(1.15)} }
+  @keyframes tailsway{ 0%,100%{transform:rotate(-3deg)} 50%{transform:rotate(4deg)} }
+  @keyframes pop     { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
+
+  .anim-float   { animation: float 6s ease-in-out infinite; }
+  .anim-breathe { animation: breathe 4.2s ease-in-out infinite; transform-origin:center; }
+  .anim-tail    { animation: tailsway 5s ease-in-out infinite; transform-origin: 18px 96px; }
+  .zzz  { animation: drift 3.4s ease-in-out infinite; }
+  .zzz2 { animation-delay: 1.1s; }
+  .zzz3 { animation-delay: 2.2s; }
+  .pop  { animation: pop .28s ease-out both; }
+
+  .ring-track { stroke:#F1E8D8; }
+  input[type=checkbox].kitty { appearance:none; }
+  input[type=checkbox].kitty:checked { background:#89A583; border-color:#89A583; }
+  input[type=checkbox].kitty:checked::after {
+    content:'✓'; color:#FCFAF5; font-size:13px; line-height:20px; display:block; text-align:center; font-weight:700;
+  }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+</style>
+</head>
+
+<body class="font-sans text-ink-600 min-h-screen antialiased">
+<div class="mx-auto max-w-6xl px-4 py-8 md:py-12">
+
+  <!-- ── Header ─────────────────────────────────────────────────────────── -->
+  <header class="flex flex-wrap items-end justify-between gap-4 mb-8">
+    <div>
+      <h1 class="font-display text-3xl md:text-4xl text-ink-700 tracking-tight">Meowstermind</h1>
+      <p class="text-ink-400 mt-1">A peaceful cat who keeps your day bite-sized. 🍵</p>
+    </div>
+    <div id="statusPill"
+         class="rounded-full border border-cream-300 bg-cream-50 px-4 py-1.5 text-xs font-semibold text-ink-400">
+      waking the cat…
+    </div>
+  </header>
+
+  <main class="grid gap-6 lg:grid-cols-[1.4fr_1fr] items-start">
+
+    <!-- ── Left column ─────────────────────────────────────────────────── -->
+    <div class="space-y-6">
+
+      <!-- Zen cat + speech bubble -->
+      <section class="card rounded-3xl border border-cream-300 bg-white/70 backdrop-blur p-6">
+        <div class="flex flex-col md:flex-row items-center gap-6">
+          <div class="anim-float shrink-0">
+            <!-- sitting zen cat -->
+            <svg viewBox="0 0 120 120" class="w-28 h-28" role="img" aria-label="A calm sitting cat">
+              <ellipse cx="60" cy="110" rx="33" ry="5" fill="#E6D9C3" opacity=".5"/>
+              <!-- tail: one soft sweep around the right side -->
+              <path class="anim-tail" d="M88 96c12 2 16-8 11-16"
+                    fill="none" stroke="#A8BFA3" stroke-width="7" stroke-linecap="round"/>
+              <!-- body -->
+              <path d="M60 56c16 0 27 18 27 34 0 11-11 16-27 16s-27-5-27-16c0-16 11-34 27-34z" fill="#C7DBC2"/>
+              <path d="M39 76c3 3 4 7 3 11M81 76c-3 3-4 7-3 11"
+                    stroke="#A8BFA3" stroke-width="3.5" stroke-linecap="round" fill="none" opacity=".9"/>
+              <ellipse cx="60" cy="94" rx="14" ry="11" fill="#EFEAF7"/>
+              <ellipse cx="49" cy="102" rx="8" ry="5" fill="#DCE9D8"/>
+              <ellipse cx="71" cy="102" rx="8" ry="5" fill="#DCE9D8"/>
+              <!-- ears -->
+              <path d="M39 32l4-18 14 11z" fill="#C7DBC2"/><path d="M81 32l-4-18-14 11z" fill="#C7DBC2"/>
+              <path d="M42 31l2.5-10 7 6z" fill="#F4CFC1"/><path d="M78 31l-2.5-10-7 6z" fill="#F4CFC1"/>
+              <!-- head -->
+              <circle cx="60" cy="46" r="24" fill="#DCE9D8"/>
+              <path d="M46 44c3 4 8 4 11 0M63 44c3 4 8 4 11 0"
+                    fill="none" stroke="#4E4840" stroke-width="2.6" stroke-linecap="round"/>
+              <circle cx="41.5" cy="53" r="5" fill="#F4CFC1" opacity=".8"/>
+              <circle cx="78.5" cy="53" r="5" fill="#F4CFC1" opacity=".8"/>
+              <path d="M56.5 53h7l-3.5 3.5z" fill="#E9AE99"/>
+              <path d="M60 56.5v2.5M60 59c-2.2 2.4-5.5 2.4-7 .3M60 59c2.2 2.4 5.5 2.4 7 .3"
+                    fill="none" stroke="#4E4840" stroke-width="1.9" stroke-linecap="round"/>
+              <path d="M28 47h12M28 55h12M80 47h12M80 55h12"
+                    stroke="#A8BFA3" stroke-width="1.9" stroke-linecap="round" opacity=".85"/>
+              <!-- a little cup of tea, steaming gently -->
+              <path d="M92 96h16v7a5 5 0 0 1-5 5h-6a5 5 0 0 1-5-5z" fill="#EFEAF7" stroke="#C3B4E0" stroke-width="2"/>
+              <path d="M108 99h3a3.5 3.5 0 0 1 0 7h-3" fill="none" stroke="#C3B4E0" stroke-width="2"/>
+              <path d="M97 90c2-2-2-4 0-6M103 90c2-2-2-4 0-6"
+                    fill="none" stroke="#C3B4E0" stroke-width="1.8" stroke-linecap="round" opacity=".8"/>
+            </svg>
+          </div>
+
+          <div class="relative flex-1 w-full">
+            <div class="bubble relative rounded-3xl border-2 border-cream-300 bg-cream-50 px-5 py-4">
+              <p id="wisdom" aria-live="polite" class="font-display text-lg leading-relaxed text-ink-700">
+                Settle in. Tell me what is on your mind today.
+              </p>
+              <p id="focusHint" class="mt-2 text-sm text-sage-600 hidden"></p>
+              <p id="wisdomNote" class="mt-2 text-xs text-ink-400 italic hidden"></p>
+            </div>
+            <button id="askWisdom"
+                    class="mt-3 rounded-full bg-sage-400 px-5 py-2 text-sm font-semibold text-white
+                           hover:bg-sage-500 focus:outline-none focus:ring-4 focus:ring-sage-200 transition
+                           disabled:opacity-60 disabled:cursor-wait">
+              Ask the cat for wisdom
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Add a task -->
+      <section class="card rounded-3xl border border-cream-300 bg-white/70 backdrop-blur p-6">
+        <h2 class="font-display text-xl text-ink-700 mb-4">Add a gentle intention</h2>
+        <form id="taskForm" class="grid gap-3 sm:grid-cols-[1fr_auto_auto_auto]">
+          <input id="title" required maxlength="200" placeholder="What would you like to tend to?"
+                 class="rounded-2xl border border-cream-300 bg-cream-50 px-4 py-3 placeholder-ink-400/70
+                        focus:outline-none focus:ring-4 focus:ring-lavender-200 focus:border-lavender-300" />
+          <input id="deadline" type="date" aria-label="Deadline"
+                 class="rounded-2xl border border-cream-300 bg-cream-50 px-3 py-3 text-sm text-ink-500
+                        focus:outline-none focus:ring-4 focus:ring-lavender-200" />
+          <input id="estimate" type="number" min="1" max="1440" placeholder="min" aria-label="Estimate in minutes"
+                 class="w-24 rounded-2xl border border-cream-300 bg-cream-50 px-3 py-3 text-sm
+                        focus:outline-none focus:ring-4 focus:ring-lavender-200" />
+          <button class="rounded-2xl bg-lavender-400 px-6 py-3 font-semibold text-white
+                         hover:bg-lavender-300 focus:outline-none focus:ring-4 focus:ring-lavender-200 transition">
+            Add
+          </button>
+        </form>
+      </section>
+
+      <!-- Task list -->
+      <section class="card rounded-3xl border border-cream-300 bg-white/70 backdrop-blur p-6">
+        <div class="flex items-baseline justify-between mb-4">
+          <h2 class="font-display text-xl text-ink-700">Today's soft list</h2>
+          <span id="taskCount" class="text-sm text-ink-400"></span>
+        </div>
+        <ul id="taskList" class="space-y-3"></ul>
+        <p id="emptyState" class="hidden text-center text-ink-400 py-10">
+          Nothing here yet — and that is its own kind of peace. 🌿
+        </p>
+      </section>
+    </div>
+
+    <!-- ── Right column: focus timer ───────────────────────────────────── -->
+    <section class="card rounded-3xl border border-cream-300 bg-white/70 backdrop-blur p-6 lg:sticky lg:top-8">
+      <h2 class="font-display text-xl text-ink-700 mb-4">Focus &amp; Cat Nap</h2>
+
+      <div class="flex gap-2 mb-6 rounded-2xl bg-cream-100 p-1 text-sm font-semibold">
+        <button data-mode="focus"     class="mode flex-1 rounded-xl px-3 py-2 transition">Focus 25</button>
+        <button data-mode="nap"       class="mode flex-1 rounded-xl px-3 py-2 transition">Cat Nap 5</button>
+        <button data-mode="deep"      class="mode flex-1 rounded-xl px-3 py-2 transition">Deep Nap 15</button>
+      </div>
+
+      <div class="relative mx-auto w-[240px] h-[240px]">
+        <svg viewBox="0 0 200 200" class="w-full h-full -rotate-90">
+          <circle class="ring-track" cx="100" cy="100" r="88" fill="none" stroke-width="12" />
+          <circle id="ring" cx="100" cy="100" r="88" fill="none" stroke-width="12" stroke-linecap="round"
+                  stroke="#A8BFA3" stroke-dasharray="552.9" stroke-dashoffset="0"
+                  style="transition: stroke-dashoffset .95s linear, stroke .4s ease" />
+        </svg>
+
+        <div class="absolute inset-0 flex flex-col items-center justify-center">
+          <!-- Awake cat (focus mode) -->
+          <svg id="catFocus" viewBox="0 0 120 90" class="w-24 h-16 mb-1" role="img" aria-label="Cat watching the timer">
+            <path d="M34 28l3-14 11 8z" fill="#C7DBC2"/><path d="M74 28l-3-14-11 8z" fill="#C7DBC2"/>
+            <ellipse cx="54" cy="44" rx="26" ry="22" fill="#DCE9D8"/>
+            <circle cx="45" cy="42" r="3.4" fill="#4E4840"/><circle cx="63" cy="42" r="3.4" fill="#4E4840"/>
+            <circle cx="46.2" cy="40.8" r="1.1" fill="#fff"/><circle cx="64.2" cy="40.8" r="1.1" fill="#fff"/>
+            <path d="M51 50h6l-3 3z" fill="#E9AE99"/>
+            <path d="M54 53v2M54 55c-2 2-4.5 2-6 .5M54 55c2 2 4.5 2 6 .5"
+                  fill="none" stroke="#4E4840" stroke-width="1.6" stroke-linecap="round"/>
+            <circle cx="36" cy="48" r="4" fill="#F4CFC1" opacity=".8"/>
+            <circle cx="72" cy="48" r="4" fill="#F4CFC1" opacity=".8"/>
+            <path d="M24 42h11M24 48h11M73 42h11M73 48h11" stroke="#A8BFA3" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+
+          <!-- Sleeping cat on a stack of books (break modes) -->
+          <svg id="catNap" viewBox="0 0 180 110" class="hidden w-40 h-24 mb-1" role="img"
+               aria-label="A tabby cat asleep on a stack of books">
+            <rect x="28" y="82" width="118" height="12" rx="3" fill="#3A4A6B"/>
+            <rect x="34" y="72" width="110" height="11" rx="3" fill="#F8F3E9"/>
+            <rect x="30" y="63" width="112" height="10" rx="3" fill="#E9AE99"/>
+            <rect x="30" y="63" width="6"  height="10" rx="2" fill="#D89078"/>
+            <rect x="28" y="82" width="6"  height="12" rx="2" fill="#2C3A55"/>
+            <g class="anim-breathe">
+              <path d="M46 62c6-16 30-22 48-14 12 5 18 10 26 14z" fill="#C0B6AC"/>
+              <ellipse cx="88" cy="55" rx="42" ry="15" fill="#CFC6BC"/>
+              <path d="M60 46c3 6 3 10 2 14M74 43c3 6 3 11 2 15M88 42c3 6 3 11 2 15M102 44c3 6 3 10 2 14"
+                    stroke="#A99E93" stroke-width="3" stroke-linecap="round" fill="none"/>
+              <path d="M126 40l1-13 10 9z" fill="#CFC6BC"/><path d="M128.5 39l.5-8 6 5z" fill="#F4CFC1"/>
+              <ellipse cx="139" cy="52" rx="17" ry="14" fill="#DCD4CB"/>
+              <path d="M134 52c2.5 3 6.5 3 9 0" fill="none" stroke="#4E4840" stroke-width="2.2" stroke-linecap="round"/>
+              <path d="M147 57h5l-2.5 2.5z" fill="#E9AE99"/>
+              <path d="M126 50h9M126 55h9" stroke="#A99E93" stroke-width="1.5" stroke-linecap="round"/>
+              <ellipse cx="52" cy="62" rx="9" ry="5" fill="#DCD4CB"/>
+            </g>
+            <path d="M46 60c-14 0-18 12-8 18" fill="none" stroke="#CFC6BC" stroke-width="7" stroke-linecap="round"/>
+            <g fill="#A794CD" font-family="Quicksand" font-weight="700" opacity=".85">
+              <text class="zzz"  x="150" y="30" font-size="13">z</text>
+              <text class="zzz zzz2" x="158" y="19" font-size="10">z</text>
+              <text class="zzz zzz3" x="147" y="12" font-size="8">z</text>
+            </g>
+          </svg>
+
+          <div id="clock" class="font-display text-5xl text-ink-700 tabular-nums">25:00</div>
+          <div id="modeLabel" class="mt-1 text-xs font-semibold uppercase tracking-widest text-sage-500">focus</div>
+        </div>
+      </div>
+
+      <p id="timerHint" class="mt-4 text-center text-sm text-ink-400">One task. One breath. One block.</p>
+
+      <div class="mt-5 flex gap-3">
+        <button id="startPause"
+                class="flex-1 rounded-2xl bg-sage-400 px-4 py-3 font-semibold text-white
+                       hover:bg-sage-500 focus:outline-none focus:ring-4 focus:ring-sage-200 transition">
+          Start
+        </button>
+        <button id="reset"
+                class="rounded-2xl border border-cream-300 bg-cream-50 px-4 py-3 font-semibold text-ink-500
+                       hover:bg-cream-100 focus:outline-none focus:ring-4 focus:ring-cream-200 transition">
+          Reset
+        </button>
+      </div>
+
+      <div class="mt-5 flex items-center justify-center gap-2">
+        <span class="text-xs text-ink-400 mr-1">paws earned</span>
+        <div id="paws" class="flex gap-1.5"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="mt-10 text-center text-xs text-ink-400">
+    Meowstermind · FastAPI + AWS Bedrock (Claude) · brew tea, breathe, begin
+  </footer>
+</div>
+
+<div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 hidden max-w-md rounded-2xl
+                       border border-blush-200 bg-blush-100 px-5 py-3 text-sm text-ink-600 card"></div>
+
+<script>
+/* ─────────────────────────── API base ─────────────────────────────────────
+   Served by FastAPI  → same origin (relative URLs).
+   Opened as a file / from another dev server → talk to localhost:8000.
+   Override any time with:  localStorage.setItem('meow_api', 'http://host:8000')
+--------------------------------------------------------------------------- */
+const API = (() => {
+  const saved = localStorage.getItem('meow_api');
+  if (saved) return saved.replace(/\/$/, '');
+  if (location.protocol === 'file:') return 'http://127.0.0.1:8000';
+  return location.port && location.port !== '8000' ? 'http://127.0.0.1:8000' : '';
+})();
+
+const $ = (sel) => document.querySelector(sel);
+let tasks = [];
+
+function toast(message, tone = 'warn') {
+  const el = $('#toast');
+  el.textContent = message;
+  el.className = el.className.replace(/hidden/, '').trim();
+  el.classList.remove('hidden');
+  el.classList.toggle('border-blush-200', tone === 'warn');
+  el.classList.toggle('bg-blush-100', tone === 'warn');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => el.classList.add('hidden'), 5000);
+}
+
+async function api(path, options = {}) {
+  const res = await fetch(API + path, {
+    headers: { 'Content-Type': 'application/json' },
+    ...options,
+  });
+  if (!res.ok) {
+    let detail = res.statusText;
+    try { detail = (await res.json()).detail ?? detail; } catch {}
+    throw new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
+  }
+  return res.status === 204 ? null : res.json();
+}
+
+/* ─────────────────────────── Tasks ─────────────────────────────────────── */
+const escapeHtml = (s) => String(s).replace(/[&<>"']/g,
+  (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+
+function deadlineChip(deadline) {
+  if (!deadline) return '';
+  const due = new Date(deadline + (deadline.length === 10 ? 'T23:59:59' : ''));
+  if (isNaN(due)) return '';
+  const days = Math.ceil((due - new Date()) / 86400000);
+  const label = due.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  const overdue = days < 0;
+  const soon = days >= 0 && days <= 1;
+  const cls = overdue ? 'bg-blush-200 text-ink-600'
+            : soon    ? 'bg-lavender-200 text-ink-600'
+                      : 'bg-cream-200 text-ink-500';
+  const text = overdue ? `${label} · overdue` : soon ? `${label} · soon` : label;
+  return `<span class="rounded-full px-2.5 py-0.5 text-xs font-semibold ${cls}">${text}</span>`;
+}
+
+function taskRow(task) {
+  const subtasks = task.subtasks.map((s, i) => `
+    <li class="flex items-center gap-2.5 text-sm">
+      <input type="checkbox" class="kitty h-5 w-5 rounded-md border-2 border-sage-200 bg-white
+             cursor-pointer transition" ${s.done ? 'checked' : ''}
+             data-sub="${i}" data-task="${task.id}" aria-label="Complete subtask" />
+      <span class="${s.done ? 'line-through text-ink-400' : 'text-ink-500'}">${escapeHtml(s.title)}</span>
+      <span class="ml-auto shrink-0 text-xs text-ink-400">${s.estimate_minutes} min</span>
+    </li>`).join('');
+
+  return `
+  <li class="pop rounded-2xl border border-cream-200 bg-cream-50/70 p-4" data-id="${task.id}">
+    <div class="flex items-start gap-3">
+      <input type="checkbox" class="kitty mt-0.5 h-6 w-6 shrink-0 rounded-lg border-2 border-sage-200
+             bg-white cursor-pointer transition" ${task.done ? 'checked' : ''}
+             data-done="${task.id}" aria-label="Complete task" />
+      <div class="min-w-0 flex-1">
+        <p class="font-semibold ${task.done ? 'line-through text-ink-400' : 'text-ink-700'}">
+          ${escapeHtml(task.title)}
+        </p>
+        <div class="mt-1.5 flex flex-wrap items-center gap-2">
+          ${deadlineChip(task.deadline)}
+          ${task.estimate_minutes ? `<span class="rounded-full bg-sage-100 px-2.5 py-0.5 text-xs font-semibold text-sage-600">~${task.estimate_minutes} min</span>` : ''}
+        </div>
+        ${task.zen_comment ? `<p class="mt-2.5 border-l-2 border-lavender-300 pl-3 text-sm italic text-lavender-400">“${escapeHtml(task.zen_comment)}”</p>` : ''}
+        ${task.subtasks.length ? `<ul class="mt-3 space-y-2">${subtasks}</ul>` : ''}
+      </div>
+      <div class="flex shrink-0 items-center gap-1">
+        <button data-break="${task.id}"
+                class="rounded-full border border-sage-200 bg-white px-3 py-1.5 text-xs font-semibold
+                       text-sage-600 hover:bg-sage-100 focus:outline-none focus:ring-4 focus:ring-sage-100
+                       transition disabled:opacity-50 disabled:cursor-wait">
+          🐾 ${task.subtasks.length ? 'Re-think' : 'Break it down'}
+        </button>
+        <button data-del="${task.id}" aria-label="Delete task" title="Delete task"
+                class="flex h-7 w-7 items-center justify-center rounded-full text-lg leading-none
+                       text-ink-400 hover:bg-blush-100 hover:text-blush-300 focus:outline-none
+                       focus:ring-4 focus:ring-blush-100 transition">×</button>
+      </div>
+    </div>
+  </li>`;
+}
+
+function render() {
+  $('#taskList').innerHTML = tasks.map(taskRow).join('');
+  const left = tasks.filter((t) => !t.done).length;
+  $('#taskCount').textContent = tasks.length
+    ? `${left} of ${tasks.length} still purring` : '';
+  $('#emptyState').classList.toggle('hidden', tasks.length > 0);
+}
+
+async function loadTasks() {
+  try { tasks = await api('/tasks'); render(); }
+  catch (err) { toast(`Could not reach the cat's kitchen: ${err.message}`); }
+}
+
+$('#taskForm').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const payload = {
+    title: $('#title').value.trim(),
+    deadline: $('#deadline').value || null,
+    estimate_minutes: $('#estimate').value ? Number($('#estimate').value) : null,
+  };
+  if (!payload.title) return;
+  try {
+    await api('/tasks', { method: 'POST', body: JSON.stringify(payload) });
+    event.target.reset();
+    $('#title').focus();
+    await loadTasks();
+  } catch (err) { toast(`Could not add that: ${err.message}`); }
+});
+
+$('#taskList').addEventListener('click', async (event) => {
+  const del = event.target.closest('[data-del]');
+  const brk = event.target.closest('[data-break]');
+
+  if (del) {
+    try { await api(`/tasks/${del.dataset.del}`, { method: 'DELETE' }); await loadTasks(); }
+    catch (err) { toast(err.message); }
+    return;
+  }
+
+  if (brk) {
+    brk.disabled = true;
+    brk.textContent = '🐾 thinking…';
+    try {
+      const result = await api('/ai/breakdown', {
+        method: 'POST',
+        body: JSON.stringify({ task_id: brk.dataset.break, max_subtasks: 5 }),
+      });
+      if (result.note) toast(result.note);
+      await loadTasks();
+    } catch (err) {
+      toast(`The cat could not focus: ${err.message}`);
+      brk.disabled = false;
+      brk.textContent = '🐾 Break it down';
+    }
+  }
+});
+
+$('#taskList').addEventListener('change', async (event) => {
+  const el = event.target;
+  try {
+    if (el.dataset.done) {
+      await api(`/tasks/${el.dataset.done}`, {
+        method: 'PATCH', body: JSON.stringify({ done: el.checked }),
+      });
+    } else if (el.dataset.sub) {
+      await api(`/tasks/${el.dataset.task}/subtasks/${el.dataset.sub}`, {
+        method: 'PATCH', body: JSON.stringify({ done: el.checked }),
+      });
+    }
+    await loadTasks();
+  } catch (err) { toast(err.message); }
+});
+
+/* ─────────────────────────── Cat wisdom ────────────────────────────────── */
+$('#askWisdom').addEventListener('click', async (event) => {
+  const button = event.currentTarget;
+  button.disabled = true;
+  const previous = button.textContent;
+  button.textContent = 'the cat is pondering…';
+  try {
+    const advice = await api('/ai/advice', { method: 'POST', body: JSON.stringify({}) });
+    $('#wisdom').textContent = advice.wisdom;
+    $('#focusHint').textContent = advice.focus_suggestion || '';
+    $('#focusHint').classList.toggle('hidden', !advice.focus_suggestion);
+    $('#wisdomNote').textContent = advice.note || '';
+    $('#wisdomNote').classList.toggle('hidden', !advice.note);
+  } catch (err) {
+    toast(`No wisdom right now: ${err.message}`);
+  } finally {
+    button.disabled = false;
+    button.textContent = previous;
+  }
+});
+
+/* ─────────────────────────── Health pill ───────────────────────────────── */
+async function loadHealth() {
+  try {
+    const health = await api('/health');
+    const live = health.ai_mode === 'bedrock' && !health.detail;
+    const pill = $('#statusPill');
+    pill.textContent = live
+      ? `🧠 Bedrock · ${(health.model_id || 'auto').split('.').pop()}`
+      : '💤 offline cat (mock mode)';
+    pill.className = `rounded-full border px-4 py-1.5 text-xs font-semibold ${
+      live ? 'border-sage-200 bg-sage-100 text-sage-600'
+           : 'border-lavender-200 bg-lavender-100 text-lavender-400'}`;
+  } catch {
+    $('#statusPill').textContent = '😴 API not reachable';
+  }
+}
+
+/* ─────────────────────────── Focus timer ───────────────────────────────── */
+const DURATIONS = { focus: 25 * 60, nap: 5 * 60, deep: 15 * 60 };
+const HINTS = {
+  focus: 'One task. One breath. One block.',
+  nap:   'Paws down. Look out a window. The work will wait.',
+  deep:  'A long stretch and a proper drink of water.',
+};
+const CIRCUMFERENCE = 2 * Math.PI * 88;
+
+let mode = 'focus';
+let remaining = DURATIONS.focus;
+let ticking = null;
+let paws = 0;
+
+const fmt = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+
+function paintTimer() {
+  $('#clock').textContent = fmt(remaining);
+  $('#modeLabel').textContent = mode === 'focus' ? 'focus' : mode === 'nap' ? 'cat nap' : 'deep nap';
+  $('#timerHint').textContent = HINTS[mode];
+  $('#ring').setAttribute('stroke-dashoffset',
+    String(CIRCUMFERENCE * (1 - remaining / DURATIONS[mode])));
+  $('#ring').setAttribute('stroke', mode === 'focus' ? '#A8BFA3' : '#C3B4E0');
+
+  const napping = mode !== 'focus';
+  $('#catFocus').classList.toggle('hidden', napping);
+  $('#catNap').classList.toggle('hidden', !napping);
+
+  document.querySelectorAll('.mode').forEach((button) => {
+    const active = button.dataset.mode === mode;
+    button.className = `mode flex-1 rounded-xl px-3 py-2 transition ${
+      active ? 'bg-white text-ink-700 shadow-sm' : 'text-ink-400 hover:text-ink-600'}`;
+  });
+
+  $('#paws').innerHTML = Array.from({ length: 4 }, (_, i) =>
+    `<span class="text-base ${i < paws % 4 || (paws && paws % 4 === 0) ? '' : 'opacity-25'}">🐾</span>`
+  ).join('');
+}
+
+function chime() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(mode === 'focus' ? 660 : 440, ctx.currentTime);
+    gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + 0.05);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 1.4);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 1.5);
+  } catch {}
+}
+
+function stop() {
+  clearInterval(ticking);
+  ticking = null;
+  $('#startPause').textContent = 'Start';
+}
+
+function finish() {
+  stop();
+  chime();
+  if (mode === 'focus') {
+    paws += 1;
+    setMode(paws % 4 === 0 ? 'deep' : 'nap');
+    toast('Focus block complete. Curl up for a cat nap. 😴', 'ok');
+  } else {
+    setMode('focus');
+    toast('Nap over. Stretch, sip, and choose one small thing. 🌿', 'ok');
+  }
+}
+
+function setMode(next) {
+  stop();
+  mode = next;
+  remaining = DURATIONS[mode];
+  paintTimer();
+}
+
+$('#startPause').addEventListener('click', () => {
+  if (ticking) { stop(); return; }
+  $('#startPause').textContent = 'Pause';
+  ticking = setInterval(() => {
+    remaining -= 1;
+    if (remaining <= 0) { remaining = 0; paintTimer(); finish(); return; }
+    paintTimer();
+  }, 1000);
+});
+$('#reset').addEventListener('click', () => setMode(mode));
+document.querySelectorAll('.mode').forEach((button) =>
+  button.addEventListener('click', () => setMode(button.dataset.mode)));
+
+/* ─────────────────────────── Boot ──────────────────────────────────────── */
+// ?mode=focus|nap|deep opens straight into that state (handy for a demo link).
+const requestedMode = new URLSearchParams(location.search).get('mode');
+if (requestedMode && DURATIONS[requestedMode]) {
+  mode = requestedMode;
+  remaining = DURATIONS[mode];
+}
+paintTimer();
+loadHealth();
+loadTasks();
+</script>
+</body>
+</html>
